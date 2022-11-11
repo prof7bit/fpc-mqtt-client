@@ -6,7 +6,7 @@ unit mqtt;
 interface
 
 uses
-  Classes, sysutils, Sockets, SSockets, syncobjs, mqttinternal;
+  Classes, sysutils, Sockets, SSockets, syncobjs, mqttinternal, fptimer;
 
 const
   MQTTDefaultKeepalive: UInt16 = 120; // seconds
@@ -64,6 +64,8 @@ type
     FDebugTxt: String;
     FLock: TCriticalSection;
     FKeepalive: UInt16;
+    FLastPing: TDateTime;
+    FKeepaliveTimer: TFPTimer;
     procedure DebugSync;
     procedure Debug(Txt: String);
     procedure Debug(Txt: String; Args: array of const);
@@ -71,6 +73,7 @@ type
     procedure PopOnDisconnect;
     procedure PushOnRX(ATopic, AMessage: String);
     procedure popOnRX;
+    procedure OnTimer(Sender: TObject);
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
   public
     constructor Create(AOwner: TComponent); override;
@@ -112,6 +115,10 @@ begin
           Client.FKeepalive := Min(Client.FKeepalive, CA.ServerKeepalive);
           Client.Debug('keepalive is %d seconds', [Client.FKeepalive]);
           Client.Debug('connected.');
+        end
+        else begin
+          Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
+          Client.Debug('RX: data %s', [P.ClassName, P.DebugPrint(True)]);
         end;
       except
         Client.Disconect;
@@ -207,6 +214,17 @@ begin
   end;
 end;
 
+procedure TMQTTClient.OnTimer(Sender: TObject);
+begin
+  if Connected then begin
+    if Now - FLastPing > FKeepalive / (60 * 60 * 24) then begin
+      Debug('ping');
+      FSocket.WriteMQTTPingReq;
+      FLastPing := Now;
+    end;
+  end;
+end;
+
 function TMQTTClient.ConnectSocket(Host: String; Port: Word): TMQTTError;
 var
   Data: TMemoryStream;
@@ -236,6 +254,10 @@ begin
   FLock := TCriticalSection.Create;
   FSocket := nil;
   FListenThread := TMQTTLIstenThread.Create(Self);
+  FKeepaliveTimer := TFPTimer.Create(Self);
+  FKeepaliveTimer.OnTimer := @OnTimer;
+  FKeepaliveTimer.Interval := 1000;
+  FKeepaliveTimer.Enabled := True;
 end;
 
 destructor TMQTTClient.Destroy;
@@ -258,6 +280,7 @@ begin
   if Result = mqeNoError then begin
     FKeepalive := MQTTDefaultKeepalive;
     FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive);
+    FLastPing := Now;
   end;
 end;
 

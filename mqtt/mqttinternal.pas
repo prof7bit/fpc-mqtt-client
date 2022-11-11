@@ -39,9 +39,10 @@ type
   { TMQTTParsedPacket }
 
   TMQTTParsedPacket = class
-    Flags: Byte;
+    PacketType: TMQTTPacketType;
+    PacketFlags: Byte;
     Remaining: TMemoryStream;
-    constructor Create(AFlags: Byte; ARemaining: TMemoryStream);
+    constructor Create(AType: TMQTTPacketType; AFlags: Byte; ARemaining: TMemoryStream);
     destructor Destroy; override;
     procedure Parse; virtual;
     function DebugPrint(FromStart: Boolean): String;
@@ -83,6 +84,7 @@ type
     procedure WriteMQTTBin(X: TBytes);
     procedure WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
+    procedure WriteMQTTPingReq;
 
     function ReadVarInt: UInt32;
     function ReadInt16Big: UInt16;
@@ -120,7 +122,6 @@ begin
     ServerKeepalive := High(ServerKeepalive);
     while Remaining.Position < PropEnd do begin
       Prop := ReadByte;
-      WriteLn(Prop);
       case Prop of
         17: ExpiryInterval := ReadInt32Big;        // Ch. 3.2.2.3.2
         33: RecvMax := ReadInt16Big;               // Ch. 3.2.2.3.3
@@ -152,12 +153,13 @@ end;
 
 { TMQTTParsedPacket }
 
-constructor TMQTTParsedPacket.Create(AFlags: Byte; ARemaining: TMemoryStream);
+constructor TMQTTParsedPacket.Create(AType: TMQTTPacketType; AFlags: Byte; ARemaining: TMemoryStream);
 begin
   inherited Create;
   Remaining := ARemaining;
   Remaining.Seek(0, soBeginning);
-  Flags := AFlags;
+  PacketType := AType;
+  PacketFlags := AFlags;
 end;
 
 destructor TMQTTParsedPacket.Destroy;
@@ -238,25 +240,30 @@ begin
   // each packet has a fixed header                  (Ch. 2.1.1)
   Self.WriteByte((ord(Typ) shl 4) or Flags);
 
-  // folowed by a variable size header,              (Ch. 2.2)
+  // folowed by a variable header,                   (Ch. 2.2)
   // and optionally a payload                        (Ch. 2.3)
 
-  // The variable size header begins with a size field which
-  // spans all remaining data until the end
-  self.WriteVarInt(Remaining.Size);  // byte 2..     (Ch. 2.1.4)
+  if Assigned(Remaining) then begin
+    // The second element of the fixed header is a variable int
+    // length field which counts the number of all remaining bytes
+    // until the end of the packet.
+    self.WriteVarInt(Remaining.Size);  // byte 2..     (Ch. 2.1.4)
 
-  // everything after the remaining length field until the end has
-  // already been prepared in the 'Remaining' memory stream object
-  // and we append it here. After this the packet will be complete.
-  Remaining.Seek(0, soBeginning);
-  Self.CopyFrom(Remaining, Remaining.Size);
+    // Everything after that variable int field until the end has
+    // already been prepared in the 'Remaining' memory stream object
+    // and we append it here. After this the packet will be complete.
+    Remaining.Seek(0, soBeginning);
+    Self.CopyFrom(Remaining, Remaining.Size);
+  end
+  else
+    self.WriteVarInt(0); // a packet without data, remaining length = 0
 end;
 
-procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16
-  );
+procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
 var
   Remaining: TMemoryStream;
 begin
+  // Ch. 3.1
   Remaining := TMemoryStream.Create;
   Remaining.WriteMQTTString('MQTT');      // byte 1..6   (Ch. 3.1.2.1)
   Remaining.WriteByte(5);                 // byte 7      (Ch. 3.1.2.2)
@@ -280,6 +287,12 @@ begin
   // write an MQTT packet with fixed header and remaining data
   Self.WriteMQTTPacket(mqptConnect, 0, Remaining);
   Remaining.Free;
+end;
+
+procedure TMQTTStream.WriteMQTTPingReq;
+begin
+  // Ch. 3.12
+  Self.WriteMQTTPacket(mqptPingReq, 0, nil);
 end;
 
 
@@ -348,16 +361,20 @@ var
   RemLen: UInt32;
   Remaining: TMemoryStream;
 begin
+  // fixed header
   Fixed := Self.ReadByte;
   Typ := TMQTTPacketType(Fixed shr 4);
   Flags := Fixed and $0f;
+
+  // variable header and all remaining bytes
   RemLen := Self.ReadVarInt;
   Remaining := TMemoryStream.Create;
-  Remaining.CopyFrom(Self, RemLen);
+  if RemLen > 0 then
+    Remaining.CopyFrom(Self, RemLen);
   case Typ of
-    mqptConnAck: Result := TMQTTConnAck.Create(Flags, Remaining);
+    mqptConnAck: Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
   else
-    Result := TMQTTParsedPacket.Create(Flags, Remaining);
+    Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;
   Result.Parse;
 end;
