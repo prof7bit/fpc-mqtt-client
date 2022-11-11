@@ -1,0 +1,6 @@
+**/backup/
+**/lib/
+**/*.exe
+**/*.lps
+**/*.ini
+demo/project1
