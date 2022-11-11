@@ -63,6 +63,7 @@ type
     FRXQueue: array of TMQTTRXData;
     FDebugTxt: String;
     FLock: TCriticalSection;
+    FListenWake: TEvent;
     FKeepalive: UInt16;
     FLastPing: TDateTime;
     FKeepaliveTimer: TFPTimer;
@@ -128,7 +129,7 @@ begin
       end;
     end
     else
-      Sleep(100);
+      Client.FListenWake.WaitFor(INFINITE);
   until Terminated;
 end;
 
@@ -242,6 +243,7 @@ begin
     FClosing := False;
     try
       FSocket := TInetSocket.Create(Host, Port);
+      FListenWake.SetEvent;
       Result := mqeNoError;
     except
       on E: ESocketError do begin
@@ -259,6 +261,7 @@ constructor TMQTTClient.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FLock := TCriticalSection.Create;
+  FListenWake := TEventObject.Create(nil, False, False, '');
   FSocket := nil;
   FListenThread := TMQTTLIstenThread.Create(Self);
   FKeepaliveTimer := TFPTimer.Create(Self);
@@ -275,6 +278,7 @@ begin
   FOnDisconnect := nil;
   FLock.Release;
   FListenThread.Terminate;
+  FListenWake.SetEvent;
   if Connected then
     Disconect;
   FreeAndNil(FLock);
