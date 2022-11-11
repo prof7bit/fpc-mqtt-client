@@ -74,6 +74,10 @@ type
     procedure Parse; override;
   end;
 
+  TMQTTPingResp = class(TMQTTParsedPacket) // Ch. 3.13
+    // contains no data
+  end;
+
   { TMQTTStream }
 
   TMQTTStream = class helper for TStream
@@ -373,6 +377,7 @@ begin
     Remaining.CopyFrom(Self, RemLen);
   case Typ of
     mqptConnAck: Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
+    mqptPingResp: Result := TMQTTPingResp.Create(Typ, Flags, Remaining);
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;

@@ -116,6 +116,9 @@ begin
           Client.Debug('keepalive is %d seconds', [Client.FKeepalive]);
           Client.Debug('connected.');
         end
+        else if P is TMQTTPingResp then begin
+          Client.Debug('pong');
+        end
         else begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
           Client.Debug('RX: data %s', [P.ClassName, P.DebugPrint(True)]);
