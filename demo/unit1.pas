@@ -24,6 +24,7 @@ type
     procedure ButtonConnectClick(Sender: TObject);
     procedure ButtonDisconnectClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
   private
     FClient: TMQTTClient;
     Ini: TIniFile;
@@ -54,6 +55,11 @@ begin
   FClient := TMQTTClient.Create(Self);
   FClient.OnDebug := @Debug;
   FClient.OnDisconnect := @OnDisconnect;
+end;
+
+procedure TForm1.FormDestroy(Sender: TObject);
+begin
+  Ini.Free;
 end;
 
 procedure TForm1.ButtonConnectClick(Sender: TObject);

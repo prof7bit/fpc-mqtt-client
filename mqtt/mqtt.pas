@@ -124,6 +124,7 @@ begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
           Client.Debug('RX: data %s', [P.ClassName, P.DebugPrint(True)]);
         end;
+        P.Free;
       except
         Client.Disconect;
       end;
@@ -282,6 +283,7 @@ begin
   if Connected then
     Disconect;
   FreeAndNil(FLock);
+  FreeAndNil(FListenWake);
   inherited Destroy;
 end;
 
