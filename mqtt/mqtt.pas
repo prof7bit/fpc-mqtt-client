@@ -152,12 +152,16 @@ end;
 
 procedure TMQTTClient.Debug(Txt: String);
 begin
+  if not Assigned(FOnDebug) then
+    exit;
   FDebugTxt := Txt;
   TThread.Synchronize(nil, @DebugSync);
 end;
 
 procedure TMQTTClient.Debug(Txt: String; Args: array of const);
 begin
+  if not Assigned(FOnDebug) then
+    exit;
   Debug(Format(Txt, Args));
 end;
 
