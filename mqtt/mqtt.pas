@@ -111,6 +111,7 @@ type
     procedure OnTimer(Sender: TObject);
     procedure Handle(P: TMQTTConnAck);
     procedure Handle(P: TMQTTPingResp);
+    procedure Handle(P: TMQTTSubAck);
     function GetNewPacketID: UInt16;
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
   public
@@ -142,6 +143,7 @@ begin
         // Client.Debug('RX: %s %s', [P.ClassName, P.DebugPrint(True)]);
         if      P is TMQTTConnAck  then Client.Handle(P as TMQTTConnAck)
         else if P is TMQTTPingResp then Client.Handle(P as TMQTTPingResp)
+        else if P is TMQTTSubAck   then Client.Handle(P as TMQTTSubAck)
         else begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
           Client.Debug('RX: data %s', [P.DebugPrint(True)]);
@@ -267,6 +269,20 @@ end;
 procedure TMQTTClient.Handle(P: TMQTTPingResp);
 begin
   Debug('pong');
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTSubAck);
+var
+  B: Byte;
+  S: String;
+begin
+  Debug('suback PacketID: %d', [P.PacketID]);
+  Debug('suback ReasonString: ' + P.ReasonString);
+  S := 'suback ReasonCodes: ';
+  for B in P.ReasonCodes do begin
+    S += IntToHex(B, 2) + ' ';
+  end;
+  Debug(S)
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;

@@ -107,6 +107,16 @@ type
     // contains no data
   end;
 
+  { TMQTTSubAck }
+
+  TMQTTSubAck = class(TMQTTParsedPacket) // Ch. 3.9
+    PacketID: UInt16;
+    ReasonString: UTF8String;
+    UserProperty: array of TStringPair;
+    ReasonCodes: array of Byte;
+    procedure Parse; override;
+  end;
+
   { TMQTTStream }
 
   TMQTTStream = class helper for TStream
@@ -130,6 +140,42 @@ type
 
 
 implementation
+
+{ TMQTTSubAck }
+
+procedure TMQTTSubAck.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+  SP: TStringPair;
+begin
+  with Remaining do begin
+    PacketID := ReadInt16Big;                     // Ch. 3.9.2
+
+    // begin properties
+    PropLen := ReadVarInt;                        // Ch. 3.9.2.1.1
+    PropEnd := Position + PropLen;
+    while Position < PropEnd do begin
+      Prop := ReadByte;
+      case Prop of
+        31: ReasonString := ReadMQTTString;       // Ch. 3.9.2.1.2
+        38: begin                                 // Ch. 3.9.2.1.3
+          SP.Key := ReadMQTTString;
+          SP.Value := ReadMQTTString;
+          UserProperty := UserProperty + [SP];
+        end;
+      end;
+    end;
+    // end properties
+
+    // begin payload                              // Ch. 3.9.3
+    while Position < Size do begin
+      ReasonCodes := ReasonCodes + [ReadByte];
+    end;
+    // end payload
+  end;
+end;
 
 { TMQTTConnAck }
 
@@ -156,7 +202,7 @@ begin
     SubsIdentAvail := True;
     SharedSubsAvail := True;
     ServerKeepalive := High(ServerKeepalive);
-    while Remaining.Position < PropEnd do begin
+    while Position < PropEnd do begin
       Prop := ReadByte;
       case Prop of
         17: ExpiryInterval := ReadInt32Big;        // Ch. 3.2.2.3.2
@@ -432,6 +478,7 @@ begin
   case Typ of
     mqptConnAck: Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
     mqptPingResp: Result := TMQTTPingResp.Create(Typ, Flags, Remaining);
+    mqptSubAck: Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;
