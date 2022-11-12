@@ -38,7 +38,11 @@ uses
   Classes, sysutils, Sockets, SSockets, syncobjs, mqttinternal, fptimer;
 
 const
-  MQTTDefaultKeepalive: UInt16 = 120; // seconds
+  MQTTDefaultKeepalive: UInt16 = 5; // seconds
+
+  HOUR = 1 / 24;
+  MINUTE = HOUR / 60;
+  SECOND = MINUTE / 60;
 
 type
   TMQTTError = (
@@ -104,6 +108,8 @@ type
     procedure PushOnRX(ATopic, AMessage: String);
     procedure popOnRX;
     procedure OnTimer(Sender: TObject);
+    procedure Handle(P: TMQTTConnAck);
+    procedure Handle(P: TMQTTPingResp);
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
   public
     constructor Create(AOwner: TComponent); override;
@@ -120,14 +126,6 @@ type
 
 implementation
 
-function Min(A, B: UInt16): UInt16;
-begin
-  if A < B then
-    Result := A
-  else
-    Result := B;
-end;
-
 { TMQTTLIstenThread }
 
 procedure TMQTTLIstenThread.Execute;
@@ -140,15 +138,8 @@ begin
       try
         P := Client.FSocket.ReadMQTTPacket;
         // Client.Debug('RX: %s %s', [P.ClassName, P.DebugPrint(True)]);
-        if P is TMQTTConnAck then begin
-          CA := TMQTTConnAck(P);
-          Client.FKeepalive := Min(Client.FKeepalive, CA.ServerKeepalive);
-          Client.Debug('keepalive is %d seconds', [Client.FKeepalive]);
-          Client.Debug('connected.');
-        end
-        else if P is TMQTTPingResp then begin
-          Client.Debug('pong');
-        end
+        if      P is TMQTTConnAck  then Client.Handle(P as TMQTTConnAck)
+        else if P is TMQTTPingResp then Client.Handle(P as TMQTTPingResp)
         else begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
           Client.Debug('RX: data %s', [P.ClassName, P.DebugPrint(True)]);
@@ -255,7 +246,7 @@ end;
 procedure TMQTTClient.OnTimer(Sender: TObject);
 begin
   if Connected then begin
-    if Now - FLastPing > FKeepalive / (60 * 60 * 24) then begin
+    if Now - FLastPing > FKeepalive * SECOND then begin
       Debug('ping');
       FSocket.WriteMQTTPingReq;
       FLastPing := Now;
@@ -263,9 +254,20 @@ begin
   end;
 end;
 
+procedure TMQTTClient.Handle(P: TMQTTConnAck);
+begin
+  if P.ServerKeepalive < FKeepalive then
+    FKeepalive := P.ServerKeepalive;
+  Debug('keepalive is %d seconds', [FKeepalive]);
+  Debug('connected.');
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTPingResp);
+begin
+  Debug('pong');
+end;
+
 function TMQTTClient.ConnectSocket(Host: String; Port: Word): TMQTTError;
-var
-  Data: TMemoryStream;
 begin
   if Connected then
     Result := mqeAlreadyConnected
