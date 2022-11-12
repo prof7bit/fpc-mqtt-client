@@ -311,6 +311,7 @@ begin
   FListenWake.SetEvent;
   if Connected then
     Disconect;
+  FListenThread.WaitFor;
   FreeAndNil(FLock);
   FreeAndNil(FListenWake);
   inherited Destroy;
