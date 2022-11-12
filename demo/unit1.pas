@@ -14,15 +14,18 @@ type
 
   TForm1 = class(TForm)
     ButtonConnect: TButton;
+    ButtonSubscribe: TButton;
     ButtonDisconnect: TButton;
     EditUser: TLabeledEdit;
     EditPass: TLabeledEdit;
     EditHost: TLabeledEdit;
     EditPort: TLabeledEdit;
     EditID: TLabeledEdit;
+    EditTopic: TLabeledEdit;
     SynEdit1: TSynEdit;
     procedure ButtonConnectClick(Sender: TObject);
     procedure ButtonDisconnectClick(Sender: TObject);
+    procedure ButtonSubscribeClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
@@ -52,6 +55,7 @@ begin
   EditID.Text := Ini.ReadString('server', 'id', '');
   EditUser.Text := Ini.ReadString('server', 'user', '');
   EditPass.Text := Ini.ReadString('server', 'pass', '');
+  EditTopic.Text := Ini.ReadString('subscribe', 'topic', '');
   FClient := TMQTTClient.Create(Self);
   FClient.OnDebug := @Debug;
   FClient.OnDisconnect := @OnDisconnect;
@@ -75,6 +79,12 @@ end;
 procedure TForm1.ButtonDisconnectClick(Sender: TObject);
 begin
   FClient.Disconect;
+end;
+
+procedure TForm1.ButtonSubscribeClick(Sender: TObject);
+begin
+  Ini.WriteString('subscribe', 'topic', EditTopic.Text);
+  FClient.Subscribe(EditTopic.Text, @OnRx);
 end;
 
 procedure TForm1.Debug(Txt: String);

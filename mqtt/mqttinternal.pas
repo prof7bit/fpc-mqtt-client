@@ -118,6 +118,7 @@ type
     procedure WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
     procedure WriteMQTTPingReq;
+    procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16);
 
     function ReadVarInt: UInt32;
     function ReadInt16Big: UInt16;
@@ -330,6 +331,28 @@ begin
   Self.WriteMQTTPacket(mqptPingReq, 0, nil);
 end;
 
+procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16);
+var
+  Remaining: TMemoryStream;
+begin
+  // Ch. 3.8
+  Remaining := TMemoryStream.Create;
+  Remaining.WriteInt16Big(PacketID);      // bytes 1..2  (Ch. 3.8.2)
+
+  // begin props                          //             (Ch. 3.8.2.1)
+  Remaining.WriteVarInt(0);               // length      (Ch. 3.8.2.1.1)
+  // empty
+  // end props
+
+  // begin payload
+  Remaining.WriteMQTTString(Topic);       //             (Ch. 3.8.3)
+  Remaining.WriteByte(%00000000);         // subs-opt    (Ch. 3.8.3.1)
+  // end payload
+
+  // write an MQTT packet with fixed header and remaining data
+  Self.WriteMQTTPacket(mqptSubscribe, %0010, Remaining);
+  Remaining.Free;
+end;
 
 function TMQTTStream.ReadVarInt: UInt32;
 var

@@ -3,27 +3,25 @@ object Form1: TForm1
   Left = 662
   Height = 613
   Top = 277
-  Width = 848
+  Width = 977
   Caption = 'MQTT Client Demo'
   ClientHeight = 613
-  ClientWidth = 848
+  ClientWidth = 977
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  LCLVersion = '2.2.5.0'
   object EditHost: TLabeledEdit
     AnchorSideTop.Control = SynEdit1
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 680
-    Height = 32
+    Left = 804
+    Height = 30
     Top = 16
-    Width = 158
-    Anchors = [akTop, akLeft, akRight]
+    Width = 163
+    Anchors = [akTop, akRight]
     BorderSpacing.Right = 10
-    EditLabel.Height = 18
-    EditLabel.Width = 29
+    EditLabel.Height = 16
+    EditLabel.Width = 28
     EditLabel.Caption = 'Host'
-    EditLabel.ParentColor = False
     LabelPosition = lpLeft
     TabOrder = 3
   end
@@ -33,17 +31,16 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 680
-    Height = 32
-    Top = 51
-    Width = 158
+    Left = 804
+    Height = 30
+    Top = 49
+    Width = 163
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
-    EditLabel.Height = 18
+    EditLabel.Height = 16
     EditLabel.Width = 26
     EditLabel.Caption = 'Port'
-    EditLabel.ParentColor = False
     LabelPosition = lpLeft
     TabOrder = 4
   end
@@ -53,17 +50,16 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 680
-    Height = 32
-    Top = 86
-    Width = 158
+    Left = 804
+    Height = 30
+    Top = 82
+    Width = 163
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
-    EditLabel.Height = 18
-    EditLabel.Width = 53
+    EditLabel.Height = 16
+    EditLabel.Width = 50
     EditLabel.Caption = 'Client-ID'
-    EditLabel.ParentColor = False
     LabelPosition = lpLeft
     TabOrder = 5
   end
@@ -73,17 +69,16 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 680
-    Height = 32
-    Top = 121
-    Width = 158
+    Left = 804
+    Height = 30
+    Top = 115
+    Width = 163
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
-    EditLabel.Height = 18
-    EditLabel.Width = 30
+    EditLabel.Height = 16
+    EditLabel.Width = 27
     EditLabel.Caption = 'User'
-    EditLabel.ParentColor = False
     LabelPosition = lpLeft
     TabOrder = 6
   end
@@ -93,18 +88,17 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 680
-    Height = 32
-    Top = 156
-    Width = 158
+    Left = 804
+    Height = 30
+    Top = 148
+    Width = 163
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
     EchoMode = emPassword
-    EditLabel.Height = 18
-    EditLabel.Width = 28
+    EditLabel.Height = 16
+    EditLabel.Width = 27
     EditLabel.Caption = 'Pass'
-    EditLabel.ParentColor = False
     LabelPosition = lpLeft
     PasswordChar = '*'
     TabOrder = 7
@@ -114,8 +108,8 @@ object Form1: TForm1
     Left = 16
     Height = 590
     Top = 16
-    Width = 590
-    BorderSpacing.Right = 10
+    Width = 718
+    BorderSpacing.Right = 70
     Anchors = [akTop, akLeft, akRight, akBottom]
     Color = clWindow
     Font.Color = clWindowText
@@ -615,36 +609,72 @@ object Form1: TForm1
     end
   end
   object ButtonConnect: TButton
-    AnchorSideLeft.Control = EditUser
+    AnchorSideLeft.Control = EditHost
     AnchorSideTop.Control = EditPass
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 616
+    Left = 804
     Height = 25
-    Top = 203
-    Width = 222
-    Anchors = [akTop, akRight]
-    BorderSpacing.Top = 15
+    Top = 188
+    Width = 163
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 10
     BorderSpacing.Right = 10
     Caption = 'Connect'
     OnClick = ButtonConnectClick
     TabOrder = 1
   end
   object ButtonDisconnect: TButton
-    AnchorSideLeft.Control = ButtonConnect
+    AnchorSideLeft.Control = EditHost
     AnchorSideTop.Control = ButtonConnect
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = ButtonConnect
     AnchorSideRight.Side = asrBottom
-    Left = 616
+    Left = 804
     Height = 25
-    Top = 233
-    Width = 222
+    Top = 218
+    Width = 163
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 5
     Caption = 'Disconnect'
     OnClick = ButtonDisconnectClick
     TabOrder = 2
+  end
+  object EditTopic: TLabeledEdit
+    AnchorSideLeft.Control = EditHost
+    AnchorSideTop.Control = ButtonDisconnect
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = Owner
+    AnchorSideRight.Side = asrBottom
+    Left = 804
+    Height = 30
+    Top = 263
+    Width = 163
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 20
+    BorderSpacing.Right = 10
+    EditLabel.Height = 16
+    EditLabel.Width = 31
+    EditLabel.Caption = 'Topic'
+    LabelPosition = lpLeft
+    TabOrder = 8
+  end
+  object ButtonSubscribe: TButton
+    AnchorSideLeft.Control = EditHost
+    AnchorSideTop.Control = EditTopic
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = Owner
+    AnchorSideRight.Side = asrBottom
+    Left = 804
+    Height = 25
+    Top = 303
+    Width = 163
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 10
+    BorderSpacing.Right = 10
+    Caption = 'Subscribe'
+    OnClick = ButtonSubscribeClick
+    TabOrder = 9
   end
 end

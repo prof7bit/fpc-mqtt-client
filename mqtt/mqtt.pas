@@ -38,7 +38,7 @@ uses
   Classes, sysutils, Sockets, SSockets, syncobjs, mqttinternal, fptimer;
 
 const
-  MQTTDefaultKeepalive: UInt16 = 5; // seconds
+  MQTTDefaultKeepalive: UInt16 = 120; // seconds
 
   HOUR = 1 / 24;
   MINUTE = HOUR / 60;
@@ -100,6 +100,7 @@ type
     FKeepalive: UInt16;
     FLastPing: TDateTime;
     FKeepaliveTimer: TFPTimer;
+    FNextPacketID: UInt16;
     procedure DebugSync;
     procedure Debug(Txt: String);
     procedure Debug(Txt: String; Args: array of const);
@@ -110,6 +111,7 @@ type
     procedure OnTimer(Sender: TObject);
     procedure Handle(P: TMQTTConnAck);
     procedure Handle(P: TMQTTPingResp);
+    function GetNewPacketID: UInt16;
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
   public
     constructor Create(AOwner: TComponent); override;
@@ -142,7 +144,7 @@ begin
         else if P is TMQTTPingResp then Client.Handle(P as TMQTTPingResp)
         else begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
-          Client.Debug('RX: data %s', [P.ClassName, P.DebugPrint(True)]);
+          Client.Debug('RX: data %s', [P.DebugPrint(True)]);
         end;
         P.Free;
       except
@@ -267,6 +269,16 @@ begin
   Debug('pong');
 end;
 
+function TMQTTClient.GetNewPacketID: UInt16;
+begin
+  FLock.Acquire;
+  Result := FNextPacketID;
+  if Result = 0 then // IDs must be non-zero, so we skip the zero
+    Result := 1;
+  FNextPacketID := Result + 1;
+  FLock.Release;
+end;
+
 function TMQTTClient.ConnectSocket(Host: String; Port: Word): TMQTTError;
 begin
   if Connected then
@@ -369,7 +381,7 @@ begin
   if Found then
     exit(mqeAlreadyConnected);
 
-  // todo: implement subscribe
+  FSocket.WriteMQTTSubscribe(ATopic, GetNewPacketID);
 
   Info.Topic := ATopic;
   Info.Handler := AHandler;
