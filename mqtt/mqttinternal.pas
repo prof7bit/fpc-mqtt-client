@@ -134,6 +134,7 @@ implementation
 
 procedure TMQTTConnAck.Parse;
 var
+  PropLen: UInt32;
   PropEnd: UInt32;
   Prop: Byte;
   SP: TStringPair;
@@ -143,7 +144,8 @@ begin
     ConnAckFlags := ReadByte;                      // Ch. 3.2.2.1
     ReasonCode := ReadByte;                        // Ch. 3.2.2.2
     // begin properties
-    PropEnd := Position + ReadVarInt;              // Ch. 3.2.2.3.1
+    PropLen := ReadVarInt;                         // Ch. 3.2.2.3.1
+    PropEnd := Position + PropLen;
     // defaults
     RecvMax := $ffff;
     MaxQoS := 2;
