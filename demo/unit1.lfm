@@ -9,6 +9,7 @@ object Form1: TForm1
   ClientWidth = 977
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  LCLVersion = '2.2.0.3'
   object EditHost: TLabeledEdit
     AnchorSideTop.Control = SynEdit1
     AnchorSideRight.Control = Owner

@@ -62,9 +62,15 @@ type
   TMQTTDisconnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTRXFunc = procedure(AClient: TMQTTClient; ATopic, AMessage: String) of object;
 
-  TMQTTSubscriptionInfo = record
-    Topic: String;
+  TMQTTSubscriptionInfo = class
+    TopicFilter: String;
+    SubsID: UInt32;
     Handler: TMQTTRXFunc;
+  end;
+
+  TTopicAlias = record
+    ID: UInt16;
+    Topic: String;
   end;
 
   TMQTTRXData = record
@@ -94,6 +100,7 @@ type
     FOnDisconnect: TMQTTDisconnectFunc;
     FSubscriptions: array of TMQTTSubscriptionInfo;
     FRXQueue: array of TMQTTRXData;
+    FTopicAliases: array of TTopicAlias;
     FDebugTxt: String;
     FLock: TCriticalSection;
     FListenWake: TEvent;
@@ -101,12 +108,13 @@ type
     FLastPing: TDateTime;
     FKeepaliveTimer: TFPTimer;
     FNextPacketID: UInt16;
+    FNextSubsID: UInt64;
     procedure DebugSync;
     procedure Debug(Txt: String);
     procedure Debug(Txt: String; Args: array of const);
     procedure PushOnDisconnect;
     procedure PopOnDisconnect;
-    procedure PushOnRX(ATopic, AMessage: String);
+    procedure PushOnRX(ASubscription: TMQTTSubscriptionInfo; ATopic, AMessage: String);
     procedure popOnRX;
     procedure OnTimer(Sender: TObject);
     procedure Handle(P: TMQTTConnAck);
@@ -114,14 +122,18 @@ type
     procedure Handle(P: TMQTTSubAck);
     procedure Handle(P: TMQTTPublish);
     function GetNewPacketID: UInt16;
+    function GetNewSubsID: UInt32;
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
+    function GetSubscription(SubscriptionID: UInt32): TMQTTSubscriptionInfo;
+    function GetSubscription(TopicFilter: String): TMQTTSubscriptionInfo;
+    function HandleTopicAlias(ID: UInt16; Topic: String): String;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function Connect(Host: String; Port: Word; ID, User, Pass: String): TMQTTError;
     function Disconect: TMQTTError;
-    function Subscribe(ATopic: String; AHandler: TMQTTRXFunc): TMQTTError;
-    function Unsubscribe(ATopic: String): TMQTTError;
+    function Subscribe(ATopicFilter: String; AHandler: TMQTTRXFunc): TMQTTError;
+    function Unsubscribe(ATopicFilter: String): TMQTTError;
     function Publish(ATopic, AMessage: String): TMQTTError;
     function Connected: Boolean;
     property OnDebug: TMQTTDebugFunc read FOnDebug write FOnDebug;
@@ -184,7 +196,7 @@ procedure TMQTTClient.Debug(Txt: String);
 begin
   if not Assigned(FOnDebug) then
     exit;
-  FDebugTxt := Txt;
+  FDebugTxt := '[mqtt debug] ' + Txt;
   TThread.Synchronize(nil, @DebugSync);
 end;
 
@@ -207,29 +219,17 @@ begin
     FOnDisconnect(self);
 end;
 
-procedure TMQTTClient.PushOnRX(ATopic, AMessage: String);
+procedure TMQTTClient.PushOnRX(ASubscription: TMQTTSubscriptionInfo; ATopic, AMessage: String);
 var
   Data: TMQTTRXData;
-  Info: TMQTTSubscriptionInfo;
-  Found: Boolean = False;
 begin
+  Data.Topic := ATopic;
+  Data.Message := AMessage;
+  Data.Handler := ASubscription.Handler;
   FLock.Acquire;
-  for Info in FSubscriptions do begin
-    if Info.Topic = ATopic then begin
-       Found := True;
-       break;
-    end;
-  end;
-  if not found then
-    FLock.Release
-  else begin
-    Data.Topic := ATopic;
-    Data.Message := AMessage;
-    Data.Handler := Info.Handler;
-    FRXQueue := [Data] + FRXQueue;
-    FLock.Release;
-    TThread.Queue(nil, @popOnRX);
-  end;
+  FRXQueue := [Data] + FRXQueue;
+  FLock.Release;
+  TThread.Queue(nil, @popOnRX);
 end;
 
 procedure TMQTTClient.popOnRX;
@@ -267,6 +267,7 @@ begin
   if P.ServerKeepalive < FKeepalive then
     FKeepalive := P.ServerKeepalive;
   Debug('keepalive is %d seconds', [FKeepalive]);
+  Debug('topic alias max is %d', [P.TopicAliasMax]);
   Debug('connected.');
 end;
 
@@ -290,8 +291,19 @@ begin
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPublish);
+var
+  ID: UInt32;
+  S: TMQTTSubscriptionInfo;
+  Topic: String;
+  Msg: String;
 begin
-  Debug('publish: topic: %s msg: %s', [P.TopicName, P.Message]);
+  Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
+  Msg := P.Message;
+  for ID in P.SubscriptionID do begin
+    S := GetSubscription(P.SubscriptionID[0]);
+    Debug('publish: fltr: %s tpc: %s msg: %s', [S.TopicFilter, Topic, Msg]);
+    PushOnRX(S, Topic, Msg);
+  end;
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;
@@ -301,6 +313,16 @@ begin
   if Result = 0 then // IDs must be non-zero, so we skip the zero
     Result := 1;
   FNextPacketID := Result + 1;
+  FLock.Release;
+end;
+
+function TMQTTClient.GetNewSubsID: UInt32;
+begin
+  FLock.Acquire;
+  Result := FNextSubsID;
+  if Result = 0 then // IDs must be non-zero, so we skip the zero
+    Result := 1;
+  FNextSubsID := Result + 1;
   FLock.Release;
 end;
 
@@ -324,6 +346,48 @@ begin
       end;
     end;
   end;
+end;
+
+function TMQTTClient.GetSubscription(SubscriptionID: UInt32): TMQTTSubscriptionInfo;
+begin
+  for Result in FSubscriptions do
+    if Result.SubsID = SubscriptionID then
+      exit;
+  Result := nil;
+end;
+
+function TMQTTClient.GetSubscription(TopicFilter: String): TMQTTSubscriptionInfo;
+begin
+  for Result in FSubscriptions do
+    if Result.TopicFilter = TopicFilter then
+      exit;
+  Result := nil;
+end;
+
+function TMQTTClient.HandleTopicAlias(ID: UInt16; Topic: String): String;
+var
+  I: Integer;
+  A: TTopicAlias;
+begin
+  Result := Topic;
+  if ID > 0 then
+    if Topic <> '' then begin // both are set
+      // either find existing and update it...
+      for I := 0 to Length(FTopicAliases) do begin
+        if FTopicAliases[I].ID = ID then begin
+          FTopicAliases[I].Topic := Topic;
+          exit(Topic);
+        end
+      end;
+      // ...or add a new alias to the list
+      A.ID := ID;
+      A.Topic := Topic;
+      FTopicAliases += [A];
+    end
+    else // only ID is set: look up topic name
+      for A in FTopicAliases do
+        if A.ID = ID then
+          exit(A.Topic);
 end;
 
 constructor TMQTTClient.Create(AOwner: TComponent);
@@ -377,19 +441,21 @@ begin
   FLock.Acquire;
   FRXQueue := [];
   FSubscriptions := [];
+  FTopicAliases := [];
   FLock.Release;
   PushOnDisconnect;
   Result := mqeNoError;
 end;
 
-function TMQTTClient.Subscribe(ATopic: String; AHandler: TMQTTRXFunc): TMQTTError;
+function TMQTTClient.Subscribe(ATopicFilter: String; AHandler: TMQTTRXFunc): TMQTTError;
 var
   Found: Boolean = False;
   Info: TMQTTSubscriptionInfo;
+  SubsID: UInt64;
 begin
   if not Assigned(AHandler) then
     exit(mqeMissingHandler);
-  if ATopic = '' then
+  if ATopicFilter = '' then
     exit(mqeEmptyTopic);
   if not Connected then
     exit(mqeNotConnected);
@@ -397,7 +463,7 @@ begin
   Result := mqeNoError;
   FLock.Acquire;
   for Info in FSubscriptions do begin
-    if ATopic = Info.Topic then begin
+    if ATopicFilter = Info.TopicFilter then begin
       Found := True;
       break;
     end;
@@ -406,16 +472,19 @@ begin
   if Found then
     exit(mqeAlreadyConnected);
 
-  FSocket.WriteMQTTSubscribe(ATopic, GetNewPacketID);
+  SubsID := GetNewSubsID;
+  FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, SubsID);
 
-  Info.Topic := ATopic;
+  Info := TMQTTSubscriptionInfo.Create;
+  Info.TopicFilter := ATopicFilter;
+  Info.SubsID := SubsID;
   Info.Handler := AHandler;
   FLock.Acquire;
-  FSubscriptions := FSubscriptions + [Info];
+  FSubscriptions += [Info];
   FLock.Release;
 end;
 
-function TMQTTClient.Unsubscribe(ATopic: String): TMQTTError;
+function TMQTTClient.Unsubscribe(ATopicFilter: String): TMQTTError;
 var
   Found: Boolean = False;
   Info: TMQTTSubscriptionInfo;
@@ -424,7 +493,7 @@ begin
   Result := mqeNoError;
   FLock.Acquire;
   for Info in FSubscriptions do begin
-    if ATopic = Info.Topic then begin
+    if ATopicFilter = Info.TopicFilter then begin
       Found := True;
       break;
     end;
@@ -435,6 +504,7 @@ begin
     exit(mqeNotSubscribed);
   end;
 
+  FSubscriptions[I].Free;
   Delete(FSubscriptions, I, 1);
   FLock.Release;
 

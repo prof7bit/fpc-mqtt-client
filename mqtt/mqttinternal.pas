@@ -148,7 +148,7 @@ type
     procedure WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
     procedure WriteMQTTPingReq;
-    procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16);
+    procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
 
     function ReadVarInt: UInt32;
     function ReadInt16Big: UInt16;
@@ -420,8 +420,9 @@ begin
   Remaining.WriteInt16Big(Keepalive);     // byte 9..10  (Ch. 3.1.2.10)
 
   // begin properties                                    (Ch. 3.1.2.11)
-  Remaining.WriteVarInt(0);               // length      (Ch. 3.1.2.11.1)
-  // empty
+  Remaining.WriteVarInt(3);               // length      (Ch. 3.1.2.11.1)
+  Remaining.WriteByte(34);                // Topic Alias Max
+  Remaining.WriteInt16Big($ffff);         //             (Ch. 3.1.2.11.5)
   // end properties
 
   // begin payload                                       (Ch. 3.1.3)
@@ -444,17 +445,23 @@ begin
   Self.WriteMQTTPacket(mqptPingReq, 0, nil);
 end;
 
-procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16);
+procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
 var
   Remaining: TMemoryStream;
+  Props: TMemoryStream;
 begin
   // Ch. 3.8
   Remaining := TMemoryStream.Create;
   Remaining.WriteInt16Big(PacketID);      // bytes 1..2  (Ch. 3.8.2)
 
   // begin props                          //             (Ch. 3.8.2.1)
-  Remaining.WriteVarInt(0);               // length      (Ch. 3.8.2.1.1)
-  // empty
+  Props := TMemoryStream.Create;
+  Props.WriteByte(11);                    //             (Ch. 3.8.2.1.2)
+  Props.WriteVarInt(SubsID);
+  Props.Seek(0, soBeginning);
+  Remaining.WriteVarInt(Props.Size);      // length      (Ch. 3.8.2.1.1)
+  Remaining.CopyFrom(Props, Props.size);
+  Props.Free;
   // end props
 
   // begin payload

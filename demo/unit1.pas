@@ -101,7 +101,7 @@ end;
 
 procedure TForm1.OnRx(Client: TMQTTClient; Topic, Message: String);
 begin
-  Debug(Format('Topic: %s Message: %s', [Topic, Message]));
+  Debug(Format('OnRX: %s = %s', [Topic, Message]));
 end;
 
 end.
