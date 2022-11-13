@@ -164,8 +164,10 @@ begin
         P.Free;
       except
         on E: Exception do begin
-          Client.Debug('%s: %s', [E.ClassName, E.Message]);
-          Client.Disconect;
+          if not Client.FClosing then begin
+            Client.Debug('%s: %s', [E.ClassName, E.Message]);
+            Client.Disconect;
+          end;
         end;
       end;
     end
