@@ -120,6 +120,9 @@
       <Item>
         <Name Value="EReadError"/>
       </Item>
+      <Item>
+        <Name Value="EMQTTUnexpectedProperty"/>
+      </Item>
     </Exceptions>
   </Debugging>
 </CONFIG>

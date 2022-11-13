@@ -38,7 +38,9 @@ uses
   Classes, SysUtils;
 
 type
-  EMQTTMalformedInteger = class(Exception);
+  EMQTTProtocolError = class(Exception);
+  EMQTTMalformedInteger = class(EMQTTProtocolError);
+  EMQTTUnexpectedProperty = class(EMQTTProtocolError);
 
   TMQTTPacketType = (
     // Ch. 2.1.2
@@ -196,6 +198,8 @@ begin
         end;
         11: SubscriptionID += [ReadVarInt];       // Ch. 3.3.2.3.8
         03: ContentType := ReadMQTTString;        // Ch. 3.3.2.3.9
+      else
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBLISH package', [Prop]));
       end;
     end;
     // end properties
@@ -231,6 +235,8 @@ begin
           SP.Value := ReadMQTTString;
           UserProperty += [SP];
         end;
+        else
+          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in SUBACK package', [Prop]));
       end;
     end;
     // end properties
@@ -292,6 +298,8 @@ begin
         28: ServerRef := ReadMQTTString;           // Ch. 3.2.2.3.16
         21: AuthMeth := ReadMQTTString;            // Ch. 3.2.2.3.17
         22: AuthData := ReadMQTTBin;               // Ch. 3.2.2.3.18
+      else
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in CONNACK package', [Prop]));
       end;
     end;
     // end properties
