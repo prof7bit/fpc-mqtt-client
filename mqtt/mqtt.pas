@@ -63,7 +63,7 @@ type
   TMQTTDisconnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTRXFunc = procedure(AClient: TMQTTClient; ATopic, AMessage: String) of object;
 
-  TMQTTSubscriptionInfo = class
+  TMQTTSubscriptionInfo = record
     TopicFilter: String;
     SubsID: UInt32;
     Handler: TMQTTRXFunc;
@@ -321,8 +321,12 @@ begin
   Msg := P.Message;
   for ID in P.SubscriptionID do begin
     S := GetSubscription(ID);
-    Debug('publish: fltr: %s tpc: %s msg: %s', [S.TopicFilter, Topic, Msg]);
-    PushOnRX(S, Topic, Msg);
+    if Assigned(S.Handler) then begin
+      Debug('publish: fltr: %s tpc: %s msg: %s', [S.TopicFilter, Topic, Msg]);
+      PushOnRX(S, Topic, Msg);
+    end
+    else
+      Debug('BUG! cannot find subscription handler for ID %d, this should never happen! (Topic: %s)', [ID, Topic]);
   end;
 end;
 
@@ -373,7 +377,7 @@ begin
   for Result in FSubscriptions do
     if Result.SubsID = SubscriptionID then
       exit;
-  Result := nil;
+  Result := Default(TMQTTSubscriptionInfo);
 end;
 
 function TMQTTClient.GetSubscription(TopicFilter: String): TMQTTSubscriptionInfo;
@@ -381,7 +385,7 @@ begin
   for Result in FSubscriptions do
     if Result.TopicFilter = TopicFilter then
       exit;
-  Result := nil;
+  Result := Default(TMQTTSubscriptionInfo);;
 end;
 
 function TMQTTClient.HandleTopicAlias(ID: UInt16; Topic: String): String;
@@ -495,7 +499,6 @@ begin
   SubsID := GetNewSubsID;
   FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, SubsID);
 
-  Info := TMQTTSubscriptionInfo.Create;
   Info.TopicFilter := ATopicFilter;
   Info.SubsID := SubsID;
   Info.Handler := AHandler;
@@ -524,7 +527,6 @@ begin
     exit(mqeNotSubscribed);
   end;
 
-  FSubscriptions[I].Free;
   Delete(FSubscriptions, I, 1);
   FLock.Release;
 
