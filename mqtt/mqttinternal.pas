@@ -351,24 +351,24 @@ begin
     X := X shr 7;
     if X > 0 then
        EncodedByte := EncodedByte or $80;
-    Self.WriteByte(EncodedByte);
+    WriteByte(EncodedByte);
   until X = 0;
 end;
 
 procedure TMQTTStream.WriteInt16Big(X: UInt16);
 begin
   // Ch. 1.5.2
-  Self.WriteByte(X shr 8);
-  Self.WriteByte(X);
+  WriteByte(X shr 8);
+  WriteByte(X);
 end;
 
 procedure TMQTTStream.WriteInt32Big(X: UInt32);
 begin
   // Ch. 1.5.3
-  Self.WriteByte(X shr 24);
-  Self.WriteByte(X shr 16);
-  Self.WriteByte(X shr 8);
-  Self.WriteByte(X);
+  WriteByte(X shr 24);
+  WriteByte(X shr 16);
+  WriteByte(X shr 8);
+  WriteByte(X);
 end;
 
 
@@ -378,8 +378,8 @@ var
 begin
   // Ch. 1.5.4
   L := Length(X);
-  Self.WriteInt16Big(L);
-  Self.WriteBuffer(X[1], L); // traditionally strings have 1-based indices in Pascal
+  WriteInt16Big(L);
+  WriteBuffer(X[1], L); // traditionally strings have 1-based indices in Pascal
 end;
 
 procedure TMQTTStream.WriteMQTTBin(X: TBytes);
@@ -388,32 +388,32 @@ var
 begin
   // Ch. 1.5.6
   L := Length(X);
-  Self.WriteInt16Big(L);
-  Self.WriteBuffer(X[0], L);
+  WriteInt16Big(L);
+  WriteBuffer(X[0], L);
 end;
 
 procedure TMQTTStream.WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
 begin
-  // each packet has a fixed header                  (Ch. 2.1.1)
-  Self.WriteByte((ord(Typ) shl 4) or Flags);
+  // each packet has a fixed header                             (Ch. 2.1.1)
+  WriteByte((ord(Typ) shl 4) or Flags);
 
-  // folowed by a variable header,                   (Ch. 2.2)
-  // and optionally a payload                        (Ch. 2.3)
+  // folowed by a variable header,                              (Ch. 2.2)
+  // and optionally a payload                                   (Ch. 2.3)
 
   if Assigned(Remaining) then begin
     // The second element of the fixed header is a variable int
     // length field which counts the number of all remaining bytes
     // until the end of the packet.
-    self.WriteVarInt(Remaining.Size);  // byte 2..     (Ch. 2.1.4)
+    WriteVarInt(Remaining.Size);  // byte 2..                   (Ch. 2.1.4)
 
     // Everything after that variable int field until the end has
     // already been prepared in the 'Remaining' memory stream object
     // and we append it here. After this the packet will be complete.
     Remaining.Seek(0, soBeginning);
-    Self.CopyFrom(Remaining, Remaining.Size);
+    CopyFrom(Remaining, Remaining.Size);
   end
   else
-    self.WriteVarInt(0); // a packet without data, remaining length = 0
+    WriteVarInt(0); // a packet without data, remaining length = 0
 end;
 
 procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
@@ -422,35 +422,37 @@ var
 begin
   // Ch. 3.1
   Remaining := TMemoryStream.Create;
-  Remaining.WriteMQTTString('MQTT');      // byte 1..6   (Ch. 3.1.2.1)
-  Remaining.WriteByte(5);                 // byte 7      (Ch. 3.1.2.2)
-  Remaining.WriteByte(%11000010);         // byte 8      (Ch. 3.1.2.3)
-  Remaining.WriteInt16Big(Keepalive);     // byte 9..10  (Ch. 3.1.2.10)
+  with Remaining do begin
+    WriteMQTTString('MQTT');                  // byte 1..6        (Ch. 3.1.2.1)
+    WriteByte(5);                             // version          (Ch. 3.1.2.2)
+    WriteByte(%11000010);                     // connect flags    (Ch. 3.1.2.3)
+    WriteInt16Big(Keepalive);                 // keepalive        (Ch. 3.1.2.10)
 
-  // begin properties                                    (Ch. 3.1.2.11)
-  Remaining.WriteVarInt(3);               // length      (Ch. 3.1.2.11.1)
-  Remaining.WriteByte(34);                // Topic Alias Max
-  Remaining.WriteInt16Big($ffff);         //             (Ch. 3.1.2.11.5)
-  // end properties
+    // begin properties                                           (Ch. 3.1.2.11)
+    WriteVarInt(3);                           // length           (Ch. 3.1.2.11.1)
+    WriteByte(34);                            // Topic Alias Max  (Ch. 3.1.2.11.5)
+    WriteInt16Big($ffff);
+    // end properties
 
-  // begin payload                                       (Ch. 3.1.3)
-  Remaining.WriteMQTTString(ID);          // client id   (Ch. 3.1.3.1)
-  // no will properties                                  (Ch. 3.1.3.2)
-  // no will topic                                       (Ch. 3.1.3.3)
-  // no will payload                                     (Ch. 3.1.3.4)
-  Remaining.WriteMQTTString(User);        // username    (Ch. 3.1.3.5)
-  Remaining.WriteMQTTString(Pass);        // password    (Ch. 3.1.3.6)
-  // end payload
+    // begin payload                                              (Ch. 3.1.3)
+    WriteMQTTString(ID);                      // client id        (Ch. 3.1.3.1)
+    // no will properties                                         (Ch. 3.1.3.2)
+    // no will topic                                              (Ch. 3.1.3.3)
+    // no will payload                                            (Ch. 3.1.3.4)
+    WriteMQTTString(User);                    // username         (Ch. 3.1.3.5)
+    WriteMQTTString(Pass);                    // password         (Ch. 3.1.3.6)
+    // end payload
+  end;
 
   // write an MQTT packet with fixed header and remaining data
-  Self.WriteMQTTPacket(mqptConnect, 0, Remaining);
+  WriteMQTTPacket(mqptConnect, 0, Remaining);
   Remaining.Free;
 end;
 
 procedure TMQTTStream.WriteMQTTPingReq;
 begin
   // Ch. 3.12
-  Self.WriteMQTTPacket(mqptPingReq, 0, nil);
+  WriteMQTTPacket(mqptPingReq, 0, nil);
 end;
 
 procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
@@ -460,25 +462,27 @@ var
 begin
   // Ch. 3.8
   Remaining := TMemoryStream.Create;
-  Remaining.WriteInt16Big(PacketID);      // bytes 1..2  (Ch. 3.8.2)
+  with Remaining do begin
+    WriteInt16Big(PacketID);                  // bytes 1..2       (Ch. 3.8.2)
 
-  // begin props                          //             (Ch. 3.8.2.1)
-  Props := TMemoryStream.Create;
-  Props.WriteByte(11);                    //             (Ch. 3.8.2.1.2)
-  Props.WriteVarInt(SubsID);
-  Props.Seek(0, soBeginning);
-  Remaining.WriteVarInt(Props.Size);      // length      (Ch. 3.8.2.1.1)
-  Remaining.CopyFrom(Props, Props.size);
-  Props.Free;
-  // end props
+    // begin props                            //                  (Ch. 3.8.2.1)
+    Props := TMemoryStream.Create;
+    Props.WriteByte(11);                      // subcription ID   (Ch. 3.8.2.1.2)
+    Props.WriteVarInt(SubsID);
+    Props.Seek(0, soBeginning);
+    WriteVarInt(Props.Size);                  // props length     (Ch. 3.8.2.1.1)
+    CopyFrom(Props, Props.size);
+    Props.Free;
+    // end props
 
-  // begin payload
-  Remaining.WriteMQTTString(Topic);       //             (Ch. 3.8.3)
-  Remaining.WriteByte(%00000000);         // subs-opt    (Ch. 3.8.3.1)
-  // end payload
+    // begin payload
+    WriteMQTTString(Topic);                   //                  (Ch. 3.8.3)
+    WriteByte(%00000000);                     // subs-opt         (Ch. 3.8.3.1)
+    // end payload
+  end;
 
   // write an MQTT packet with fixed header and remaining data
-  Self.WriteMQTTPacket(mqptSubscribe, %0010, Remaining);
+  WriteMQTTPacket(mqptSubscribe, %0010, Remaining);
   Remaining.Free;
 end;
 
@@ -495,7 +499,7 @@ begin
   repeat
     if Count > 3 then
        raise EMQTTMalformedInteger.Create('malformed encoded integer');
-    EncodedByte := Self.ReadByte;
+    EncodedByte := ReadByte;
     Result += (EncodedByte and $7f) * Multiplier;
     Multiplier *= 128;
     Inc(Count);
@@ -505,17 +509,17 @@ end;
 function TMQTTStream.ReadInt16Big: UInt16;
 begin
   // Ch. 1.5.2
-  Result := Self.ReadByte shl 8;
-  Result += Self.ReadByte;
+  Result := ReadByte shl 8;
+  Result += ReadByte;
 end;
 
 function TMQTTStream.ReadInt32Big: UInt32;
 begin
   // Ch. 1.5.3
-  Result := Self.ReadByte shl 24;
-  Result += Self.ReadByte shl 16;
-  Result += Self.ReadByte shl 8;
-  Result += Self.ReadByte;
+  Result := ReadByte shl 24;
+  Result += ReadByte shl 16;
+  Result += ReadByte shl 8;
+  Result += ReadByte;
 end;
 
 function TMQTTStream.ReadMQTTString: UTF8String;
@@ -523,9 +527,9 @@ var
   L: UInt16;
 begin
   // Ch. 1.5.4
-  L := Self.ReadInt16Big;
+  L := ReadInt16Big;
   SetLength(Result, L);
-  Self.ReadBuffer(Result[1], L); // traditionally strings have 1-based indices in Pascal
+  ReadBuffer(Result[1], L); // traditionally strings have 1-based indices in Pascal
 end;
 
 function TMQTTStream.ReadMQTTBin: TBytes;
@@ -534,9 +538,9 @@ var
 begin
   // Ch. 1.5.6
   Result := [];
-  L := Self.ReadInt16Big;
+  L := ReadInt16Big;
   SetLength(Result, L);
-  Self.ReadBuffer(Result[0], L);
+  ReadBuffer(Result[0], L);
 end;
 
 function TMQTTStream.ReadMQTTPacket: TMQTTParsedPacket;
@@ -548,12 +552,12 @@ var
   Remaining: TMemoryStream;
 begin
   // fixed header
-  Fixed := Self.ReadByte;
+  Fixed := ReadByte;
   Typ := TMQTTPacketType(Fixed shr 4);
   Flags := Fixed and $0f;
 
   // variable header and all remaining bytes
-  RemLen := Self.ReadVarInt;
+  RemLen := ReadVarInt;
   Remaining := TMemoryStream.Create;
   if RemLen > 0 then
     Remaining.CopyFrom(Self, RemLen);
