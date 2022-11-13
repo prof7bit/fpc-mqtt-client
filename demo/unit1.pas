@@ -33,6 +33,7 @@ type
     Ini: TIniFile;
     procedure Debug(Txt: String);
     procedure OnDisconnect(Client: TMQTTClient);
+    procedure OnConnect(Client: TMQTTClient);
     procedure OnRx(Client: TMQTTClient; Topic, Message: String);
   public
 
@@ -59,6 +60,7 @@ begin
   FClient := TMQTTClient.Create(Self);
   FClient.OnDebug := @Debug;
   FClient.OnDisconnect := @OnDisconnect;
+  FClient.OnConnect := @OnConnect;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
@@ -97,6 +99,11 @@ end;
 procedure TForm1.OnDisconnect(Client: TMQTTClient);
 begin
   Debug('OnDisconnect');
+end;
+
+procedure TForm1.OnConnect(Client: TMQTTClient);
+begin
+  Debug('OnConnect');
 end;
 
 procedure TForm1.OnRx(Client: TMQTTClient; Topic, Message: String);

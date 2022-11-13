@@ -59,6 +59,7 @@ type
 
   TMQTTClient = class;
   TMQTTDebugFunc = procedure(Txt: String) of object;
+  TMQTTConnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTDisconnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTRXFunc = procedure(AClient: TMQTTClient; ATopic, AMessage: String) of object;
 
@@ -97,6 +98,7 @@ type
     FSocket: TInetSocket;
     FClosing: Boolean;
     FOnDebug: TMQTTDebugFunc;
+    FOnConnect: TMQTTConnectFunc;
     FOnDisconnect: TMQTTDisconnectFunc;
     FSubscriptions: array of TMQTTSubscriptionInfo;
     FRXQueue: array of TMQTTRXData;
@@ -114,6 +116,8 @@ type
     procedure Debug(Txt: String; Args: array of const);
     procedure PushOnDisconnect;
     procedure PopOnDisconnect;
+    procedure PushOnConnect;
+    procedure PopOnConnect;
     procedure PushOnRX(ASubscription: TMQTTSubscriptionInfo; ATopic, AMessage: String);
     procedure popOnRX;
     procedure OnTimer(Sender: TObject);
@@ -138,6 +142,7 @@ type
     function Connected: Boolean;
     property OnDebug: TMQTTDebugFunc read FOnDebug write FOnDebug;
     property OnDisconnect: TMQTTDisconnectFunc read FOnDisconnect write FOnDisconnect;
+    property OnConnect: TMQTTConnectFunc read FOnConnect write FOnConnect;
   end;
 
 implementation
@@ -221,6 +226,18 @@ begin
     FOnDisconnect(self);
 end;
 
+procedure TMQTTClient.PushOnConnect;
+begin
+  TThread.Queue(nil, @PopOnConnect);
+end;
+
+procedure TMQTTClient.PopOnConnect;
+begin
+  // called from the main thread event loop
+  if Assigned(FOnConnect) then
+    FOnConnect(self);
+end;
+
 procedure TMQTTClient.PushOnRX(ASubscription: TMQTTSubscriptionInfo; ATopic, AMessage: String);
 var
   Data: TMQTTRXData;
@@ -271,6 +288,7 @@ begin
   Debug('keepalive is %d seconds', [FKeepalive]);
   Debug('topic alias max is %d', [P.TopicAliasMax]);
   Debug('connected.');
+  PushOnConnect;
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPingResp);
