@@ -112,6 +112,7 @@ type
     procedure Handle(P: TMQTTConnAck);
     procedure Handle(P: TMQTTPingResp);
     procedure Handle(P: TMQTTSubAck);
+    procedure Handle(P: TMQTTPublish);
     function GetNewPacketID: UInt16;
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
   public
@@ -134,7 +135,6 @@ implementation
 procedure TMQTTLIstenThread.Execute;
 var
   P: TMQTTParsedPacket;
-  CA: TMQTTConnAck;
 begin
   repeat
     if Client.Connected then begin
@@ -144,13 +144,17 @@ begin
         if      P is TMQTTConnAck  then Client.Handle(P as TMQTTConnAck)
         else if P is TMQTTPingResp then Client.Handle(P as TMQTTPingResp)
         else if P is TMQTTSubAck   then Client.Handle(P as TMQTTSubAck)
+        else if P is TMQTTPublish  then Client.Handle(P as TMQTTPublish)
         else begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
           Client.Debug('RX: data %s', [P.DebugPrint(True)]);
         end;
         P.Free;
       except
-        Client.Disconect;
+        on E: Exception do begin
+          Client.Debug('%s: %s', [E.ClassName, E.Message]);
+          Client.Disconect;
+        end;
       end;
     end
     else
@@ -283,6 +287,11 @@ begin
     S += IntToHex(B, 2) + ' ';
   end;
   Debug(S)
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTPublish);
+begin
+  Debug('publish: topic: %s msg: %s', [P.TopicName, P.Message]);
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;

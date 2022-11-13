@@ -117,6 +117,26 @@ type
     procedure Parse; override;
   end;
 
+  { TMQTTPublish }
+
+  TMQTTPublish = class(TMQTTParsedPacket) // Ch. 3.3
+    Dup: Boolean;
+    QoS: Byte;
+    Retain: Boolean;
+    TopicName: UTF8String;
+    PacketID: UInt16;
+    PayloadFormat: Byte;
+    ExpiryInterval: UInt32;
+    TopicAlias: UInt16;
+    RespTopic: UTF8String;
+    CorrelData: TBytes;
+    UserProperty: array of TStringPair;
+    SubscriptionID: array of UInt32;
+    ContentType: UTF8String;
+    Message: String;
+    procedure Parse; override;
+  end;
+
   { TMQTTStream }
 
   TMQTTStream = class helper for TStream
@@ -140,6 +160,52 @@ type
 
 
 implementation
+
+{ TMQTTPublish }
+
+procedure TMQTTPublish.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+  SP: TStringPair;
+begin
+  Retain := Boolean(PacketFlags and %0001);
+  QoS := (PacketFlags and %0110) shr 1;
+  Dup := Boolean(PacketFlags and %1000);
+  with Remaining do begin
+    TopicName := ReadMQTTString;                  // Ch. 3.3.2.1
+    if QoS > 0 then
+      PacketID := ReadInt16Big;                   // Ch. 3.3.2.2
+
+    // begin properties
+    PropLen := ReadVarInt;                        // Ch. 3.3.2.3.1
+    PropEnd := Position + PropLen;
+    while Position < PropEnd do begin
+      Prop := ReadByte;
+      case Prop of
+        01: PayloadFormat := ReadByte;            // Ch. 3.3.2.3.2
+        02: ExpiryInterval := ReadInt32Big;       // Ch. 3.3.2.3.3
+        35: TopicAlias := ReadInt16Big;           // Ch. 3.3.2.3.4
+        08: RespTopic := ReadMQTTString;          // Ch. 3.3.2.3.5
+        09: CorrelData := ReadMQTTBin;            // Ch. 3.3.2.3.6
+        38: begin                                 // Ch. 3.3.2.3.7
+          SP.Key := ReadMQTTString;
+          SP.Value := ReadMQTTString;
+          UserProperty += [SP];
+        end;
+        11: SubscriptionID += [ReadVarInt];       // Ch. 3.3.2.3.8
+        03: ContentType := ReadMQTTString;        // Ch. 3.3.2.3.9
+      end;
+    end;
+    // end properties
+
+    // begin payload
+    SetLength(Message, Size - Position);
+    ReadBuffer(Message[1], Size - Position);
+    // end payload
+  end;
+end;
 
 { TMQTTSubAck }
 
@@ -242,6 +308,7 @@ begin
   Remaining.Seek(0, soBeginning);
   PacketType := AType;
   PacketFlags := AFlags;
+  Parse;
 end;
 
 destructor TMQTTParsedPacket.Destroy;
@@ -479,10 +546,10 @@ begin
     mqptConnAck: Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
     mqptPingResp: Result := TMQTTPingResp.Create(Typ, Flags, Remaining);
     mqptSubAck: Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
+    mqptPublish: Result := TMQTTPublish.Create(Typ, Flags, Remaining);
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;
-  Result.Parse;
 end;
 
 { TMQTTStream }
