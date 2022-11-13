@@ -229,7 +229,7 @@ begin
         38: begin                                 // Ch. 3.9.2.1.3
           SP.Key := ReadMQTTString;
           SP.Value := ReadMQTTString;
-          UserProperty := UserProperty + [SP];
+          UserProperty += [SP];
         end;
       end;
     end;
@@ -237,7 +237,7 @@ begin
 
     // begin payload                              // Ch. 3.9.3
     while Position < Size do begin
-      ReasonCodes := ReasonCodes + [ReadByte];
+      ReasonCodes += [ReadByte];
     end;
     // end payload
   end;
@@ -282,7 +282,7 @@ begin
         38: begin                                  // Ch. 3.2.2.3.10
           SP.Key := ReadMQTTString;
           SP.Value := ReadMQTTString;
-          UserProperty := UserProperty + [SP];
+          UserProperty += [SP];
         end;
         40: WildSubsAvail := Boolean(ReadByte);    // Ch. 3.2.2.3.11
         41: SubsIdentAvail := Boolean(ReadByte);   // Ch. 3.2.2.3.12
