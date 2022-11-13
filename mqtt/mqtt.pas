@@ -315,18 +315,18 @@ var
   ID: UInt32;
   S: TMQTTSubscriptionInfo;
   Topic: String;
-  Msg: String;
 begin
   Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
-  Msg := P.Message;
   for ID in P.SubscriptionID do begin
     S := GetSubscription(ID);
     if Assigned(S.Handler) then begin
-      Debug('publish: fltr: %s tpc: %s msg: %s', [S.TopicFilter, Topic, Msg]);
-      PushOnRX(S, Topic, Msg);
+      Debug('publish: fltr: %s tpc: %s msg: %s, QoS: %d, Retain: %s',
+        [S.TopicFilter, Topic, P.Message, P.QoS, BoolToStr(P.Retain, True)]);
+      PushOnRX(S, Topic, P.Message);
     end
     else
-      Debug('BUG! cannot find subscription handler for ID %d, this should never happen! (Topic: %s)', [ID, Topic]);
+      Debug('BUG! cannot find subscription handler for ID %d, this should never happen! (Topic: %s)',
+        [ID, Topic]);
   end;
 end;
 
