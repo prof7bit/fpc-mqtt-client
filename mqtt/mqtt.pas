@@ -300,7 +300,7 @@ begin
   Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
   Msg := P.Message;
   for ID in P.SubscriptionID do begin
-    S := GetSubscription(P.SubscriptionID[0]);
+    S := GetSubscription(ID);
     Debug('publish: fltr: %s tpc: %s msg: %s', [S.TopicFilter, Topic, Msg]);
     PushOnRX(S, Topic, Msg);
   end;
