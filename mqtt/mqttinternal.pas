@@ -344,6 +344,8 @@ begin
   Remaining.Seek(0, soBeginning);
 end;
 
+{ TMQTTStream }
+
 procedure TMQTTStream.WriteVarInt(X: UInt32);
 var
   EncodedByte: Byte;
@@ -373,7 +375,6 @@ begin
   WriteByte(X shr 8);
   WriteByte(X);
 end;
-
 
 procedure TMQTTStream.WriteMQTTString(X: UTF8String);
 var
@@ -626,16 +627,14 @@ begin
   if RemLen > 0 then
     Remaining.CopyFrom(Self, RemLen);
   case Typ of
-    mqptConnAck: Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
+    mqptConnAck:  Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
     mqptPingResp: Result := TMQTTPingResp.Create(Typ, Flags, Remaining);
-    mqptSubAck: Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
-    mqptPublish: Result := TMQTTPublish.Create(Typ, Flags, Remaining);
+    mqptSubAck:   Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
+    mqptPublish:  Result := TMQTTPublish.Create(Typ, Flags, Remaining);
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;
 end;
-
-{ TMQTTStream }
 
 end.
 
