@@ -12,6 +12,24 @@ The client should implement just enough of the MQTT5 protocol to be able to conn
 
 Currently, it implements only user/password authentication and no SSL because that happens to be the default configuration of my Home Assistant MQTT broker. Since it is built on top of SSockets it should be possible to plug in SSL support later quite easily.
 
-## Still Not Working
+## Work in Progress
 
-If you are interested in this, then you should click the "watch" button in GitHub and be prepared to wait a little longer because in its current state it is not only incomplete, it is not even in a working state at all.
+If you are interested in this, then you should click the "watch" button in GitHub and be prepared to wait a little longer because in its current state it is still incomplete, if you want to try it anyways then be prepared for breaking API changes without notice until I got most of the stuff implemented.
+
+## Already implemented
+
+* connect (plain socket, no ssl)
+* auth with username/password
+* subscribe
+* publish
+* retain
+* response topic
+* correlation data
+
+## Still missing
+
+* QoS 1
+* QoS 2
+* SSL
+* alternative auth methods
+* will

@@ -54,18 +54,21 @@ type
     mqeMissingHandler = 5,
     mqeAlreadySubscribed = 6,
     mqeEmptyTopic = 7,
-    mqeNotSubscribed = 8
+    mqeNotSubscribed = 8,
+    mqeInvalidQoS = 9,
+    mqeRetainUnavail = 10,
+    mqeNotYetImplemented = 11
   );
 
   TMQTTClient = class;
   TMQTTDebugFunc = procedure(Txt: String) of object;
   TMQTTConnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTDisconnectFunc = procedure(AClient: TMQTTClient) of object;
-  TMQTTRXFunc = procedure(AClient: TMQTTClient; ATopic, AMessage: String) of object;
+  TMQTTRXFunc = procedure(AClient: TMQTTClient; ATopic, AMessage, AResponseTopic: String; ACorrelData: TBytes) of object;
 
   TMQTTSubscriptionInfo = record
     TopicFilter: String;
-    SubsID: UInt32;
+    SubID: UInt32;
     Handler: TMQTTRXFunc;
   end;
 
@@ -77,6 +80,8 @@ type
   TMQTTRXData = record
     Topic: String;
     Message: String;
+    RespTopic: String;
+    CorrelData: TBytes;
     Handler: TMQTTRXFunc;
   end;
 
@@ -100,7 +105,7 @@ type
     FOnDebug: TMQTTDebugFunc;
     FOnConnect: TMQTTConnectFunc;
     FOnDisconnect: TMQTTDisconnectFunc;
-    FSubscriptions: array of TMQTTSubscriptionInfo;
+    FSubInfos: array of TMQTTSubscriptionInfo;
     FRXQueue: array of TMQTTRXData;
     FTopicAliases: array of TTopicAlias;
     FDebugTxt: String;
@@ -111,6 +116,8 @@ type
     FKeepaliveTimer: TFPTimer;
     FNextPacketID: UInt16;
     FNextSubsID: UInt64;
+    FMaxQos: Byte;
+    FRetainAvail: Boolean;
     procedure DebugSync;
     procedure Debug(Txt: String);
     procedure Debug(Txt: String; Args: array of const);
@@ -118,7 +125,7 @@ type
     procedure PopOnDisconnect;
     procedure PushOnConnect;
     procedure PopOnConnect;
-    procedure PushOnRX(ASubscription: TMQTTSubscriptionInfo; ATopic, AMessage: String);
+    procedure PushOnRX(Subscription: TMQTTSubscriptionInfo; Topic, Message, RespTopic: String; CorrelData: TBytes);
     procedure popOnRX;
     procedure OnTimer(Sender: TObject);
     procedure Handle(P: TMQTTConnAck);
@@ -128,8 +135,8 @@ type
     function GetNewPacketID: UInt16;
     function GetNewSubsID: UInt32;
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
-    function GetSubscription(SubscriptionID: UInt32): TMQTTSubscriptionInfo;
-    function GetSubscription(TopicFilter: String): TMQTTSubscriptionInfo;
+    function GetSubInfo(SubID: UInt32): TMQTTSubscriptionInfo;
+    function GetSubInfo(TopicFilter: String): TMQTTSubscriptionInfo;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
   public
     constructor Create(AOwner: TComponent); override;
@@ -138,8 +145,10 @@ type
     function Disconect: TMQTTError;
     function Subscribe(ATopicFilter: String; AHandler: TMQTTRXFunc): TMQTTError;
     function Unsubscribe(ATopicFilter: String): TMQTTError;
-    function Publish(ATopic, AMessage: String): TMQTTError;
+    function Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
     function Connected: Boolean;
+    property RetainAvail: Boolean read FRetainAvail;
+    property MaxQoS: Byte read FMaxQos;
     property OnDebug: TMQTTDebugFunc read FOnDebug write FOnDebug;
     property OnDisconnect: TMQTTDisconnectFunc read FOnDisconnect write FOnDisconnect;
     property OnConnect: TMQTTConnectFunc read FOnConnect write FOnConnect;
@@ -238,13 +247,15 @@ begin
     FOnConnect(self);
 end;
 
-procedure TMQTTClient.PushOnRX(ASubscription: TMQTTSubscriptionInfo; ATopic, AMessage: String);
+procedure TMQTTClient.PushOnRX(Subscription: TMQTTSubscriptionInfo; Topic, Message, RespTopic: String; CorrelData: TBytes);
 var
   Data: TMQTTRXData;
 begin
-  Data.Topic := ATopic;
-  Data.Message := AMessage;
-  Data.Handler := ASubscription.Handler;
+  Data.Topic := Topic;
+  Data.Message := Message;
+  Data.RespTopic := RespTopic;
+  Data.CorrelData := CorrelData;
+  Data.Handler := Subscription.Handler;
   FLock.Acquire;
   FRXQueue := [Data] + FRXQueue;
   FLock.Release;
@@ -266,7 +277,7 @@ begin
     SetLength(FRXQueue, I);
     FLock.Release;
     if Assigned(Data.Handler) then
-      Data.Handler(Self, Data.Topic, Data.Message);
+      Data.Handler(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData);
   end;
 end;
 
@@ -285,8 +296,12 @@ procedure TMQTTClient.Handle(P: TMQTTConnAck);
 begin
   if P.ServerKeepalive < FKeepalive then
     FKeepalive := P.ServerKeepalive;
+  FMaxQos := P.MaxQoS;
+  FRetainAvail := P.RetainAvail;
   Debug('keepalive is %d seconds', [FKeepalive]);
   Debug('topic alias max is %d', [P.TopicAliasMax]);
+  Debug('max QoS is %d', [FMaxQoS]);
+  Debug('retain available: %s', [BoolToStr(FRetainAvail, 'yes', 'no')]);
   Debug('connected.');
   PushOnConnect;
 end;
@@ -312,21 +327,21 @@ end;
 
 procedure TMQTTClient.Handle(P: TMQTTPublish);
 var
-  ID: UInt32;
-  S: TMQTTSubscriptionInfo;
+  SubID: UInt32;
+  SubInfo: TMQTTSubscriptionInfo;
   Topic: String;
 begin
   Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
-  for ID in P.SubscriptionID do begin
-    S := GetSubscription(ID);
-    if Assigned(S.Handler) then begin
+  for SubID in P.SubscriptionID do begin
+    SubInfo := GetSubInfo(SubID);
+    if Assigned(SubInfo.Handler) then begin
       Debug('publish: fltr: %s tpc: %s msg: %s, QoS: %d, Retain: %s',
-        [S.TopicFilter, Topic, P.Message, P.QoS, BoolToStr(P.Retain, True)]);
-      PushOnRX(S, Topic, P.Message);
+        [SubInfo.TopicFilter, Topic, P.Message, P.QoS, BoolToStr(P.Retain, True)]);
+      PushOnRX(SubInfo, Topic, P.Message, P.RespTopic, P.CorrelData);
     end
     else
       Debug('BUG! cannot find subscription handler for ID %d, this should never happen! (Topic: %s)',
-        [ID, Topic]);
+        [SubID, Topic]);
   end;
 end;
 
@@ -372,17 +387,17 @@ begin
   end;
 end;
 
-function TMQTTClient.GetSubscription(SubscriptionID: UInt32): TMQTTSubscriptionInfo;
+function TMQTTClient.GetSubInfo(SubID: UInt32): TMQTTSubscriptionInfo;
 begin
-  for Result in FSubscriptions do
-    if Result.SubsID = SubscriptionID then
+  for Result in FSubInfos do
+    if Result.SubID = SubID then
       exit;
   Result := Default(TMQTTSubscriptionInfo);
 end;
 
-function TMQTTClient.GetSubscription(TopicFilter: String): TMQTTSubscriptionInfo;
+function TMQTTClient.GetSubInfo(TopicFilter: String): TMQTTSubscriptionInfo;
 begin
-  for Result in FSubscriptions do
+  for Result in FSubInfos do
     if Result.TopicFilter = TopicFilter then
       exit;
   Result := Default(TMQTTSubscriptionInfo);;
@@ -417,6 +432,7 @@ end;
 constructor TMQTTClient.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FMaxQos := 2;
   FLock := TCriticalSection.Create;
   FListenWake := TEventObject.Create(nil, False, False, '');
   FSocket := nil;
@@ -430,7 +446,7 @@ end;
 destructor TMQTTClient.Destroy;
 begin
   FLock.Acquire;
-  FSubscriptions := [];
+  FSubInfos := [];
   FRXQueue := [];
   FOnDisconnect := nil;
   FLock.Release;
@@ -464,7 +480,7 @@ begin
   FreeAndNil(FSocket);
   FLock.Acquire;
   FRXQueue := [];
-  FSubscriptions := [];
+  FSubInfos := [];
   FTopicAliases := [];
   FLock.Release;
   PushOnDisconnect;
@@ -486,7 +502,7 @@ begin
 
   Result := mqeNoError;
   FLock.Acquire;
-  for Info in FSubscriptions do begin
+  for Info in FSubInfos do begin
     if ATopicFilter = Info.TopicFilter then begin
       Found := True;
       break;
@@ -500,10 +516,10 @@ begin
   FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, SubsID);
 
   Info.TopicFilter := ATopicFilter;
-  Info.SubsID := SubsID;
+  Info.SubID := SubsID;
   Info.Handler := AHandler;
   FLock.Acquire;
-  FSubscriptions += [Info];
+  FSubInfos += [Info];
   FLock.Release;
 end;
 
@@ -515,7 +531,7 @@ var
 begin
   Result := mqeNoError;
   FLock.Acquire;
-  for Info in FSubscriptions do begin
+  for Info in FSubInfos do begin
     if ATopicFilter = Info.TopicFilter then begin
       Found := True;
       break;
@@ -527,19 +543,28 @@ begin
     exit(mqeNotSubscribed);
   end;
 
-  Delete(FSubscriptions, I, 1);
+  Delete(FSubInfos, I, 1);
   FLock.Release;
 
   // todo: implement unsubscribe
 end;
 
-function TMQTTClient.Publish(ATopic, AMessage: String): TMQTTError;
+function TMQTTClient.Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
 begin
   if not Connected then
     exit(mqeNotConnected);
 
+  if QoS > FMaxQos then  // set by the server in CONNACK
+    exit(mqeInvalidQoS);
+
+  if Retain and not FRetainAvail then // set by server in CONNACK
+    exit(mqeRetainUnavail);
+
+  if QoS > 0 then
+    exit(mqeNotYetImplemented); // fixme
+
   Result := mqeNoError;
-  // todo: implement publish
+  FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, GetNewPacketID, QoS, Retain);
 end;
 
 function TMQTTClient.Connected: Boolean;

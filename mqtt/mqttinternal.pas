@@ -31,6 +31,8 @@ unit mqttinternal;
 
 {$mode ObjFPC}{$H+}
 {$ModeSwitch arrayoperators}
+{$PackEnum 1}
+{$PackSet 1}
 
 interface
 
@@ -151,6 +153,7 @@ type
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
     procedure WriteMQTTPingReq;
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
+    procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
 
     function ReadVarInt: UInt32;
     function ReadInt16Big: UInt16;
@@ -417,15 +420,30 @@ begin
 end;
 
 procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
+type
+  TConnectFlag = (          // Ch. 3.1.2.3
+    cfReserved0   = 0,
+    cfCleanStart  = 1,      // Ch. 3.1.2.4
+    cfWill        = 2,      // Ch. 3.1.2.5
+    cfWillQoS1    = 3,      // Ch. 3.1.2.6
+    cfWillQoS2    = 4,      // Ch. 3.1.2.6
+    cfWillRetain  = 5,      // Ch. 3.1.2.7
+    cfPass        = 6,      // Ch. 3.1.2.9
+    cfUser        = 7       // Ch. 3.1.2.8
+  );
+
 var
   Remaining: TMemoryStream;
+  ConnectFlags: Set of TConnectFlag;
 begin
-  // Ch. 3.1
+  ConnectFlags := [cfCleanStart, cfUser, cfPass];
+
+  // Ch. 3.1.2
   Remaining := TMemoryStream.Create;
   with Remaining do begin
     WriteMQTTString('MQTT');                  // byte 1..6        (Ch. 3.1.2.1)
     WriteByte(5);                             // version          (Ch. 3.1.2.2)
-    WriteByte(%11000010);                     // connect flags    (Ch. 3.1.2.3)
+    WriteByte(Byte(ConnectFlags));            // connect flags    (Ch. 3.1.2.3)
     WriteInt16Big(Keepalive);                 // keepalive        (Ch. 3.1.2.10)
 
     // begin properties                                           (Ch. 3.1.2.11)
@@ -483,6 +501,52 @@ begin
 
   // write an MQTT packet with fixed header and remaining data
   WriteMQTTPacket(mqptSubscribe, %0010, Remaining);
+  Remaining.Free;
+end;
+
+procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
+var
+  Remaining: TMemoryStream;
+  Props: TMemoryStream;
+  Flags: Byte = 0;
+begin
+  // Ch. 3.8
+
+  Flags := Flags or ((QoS and %11) << 1);
+  if Retain then
+    Flags := Flags or 1;
+
+  Remaining := TMemoryStream.Create;
+  with Remaining do begin
+    WriteMQTTString(Topic);
+    if QoS > 0 then
+       WriteInt16Big(PacketID);
+
+    // begin props
+    Props := TMemoryStream.Create;
+    with Props do begin
+      if ResponseTopic <> '' then begin
+        WriteByte(8);
+        WriteMQTTString(ResponseTopic);       // response topic   (Ch. 3.3.2.3.5)
+      end;
+      if Length(CorrelData) > 0 then begin
+        WriteByte(9);
+        WriteMQTTBin(CorrelData);             // correlation data (Ch. 3.3.2.3.6)
+      end;
+    end;
+    Props.Seek(0, soBeginning);
+    WriteVarInt(Props.Size);
+    CopyFrom(Props, Props.Size);
+    Props.Free;
+    // end props
+
+    // begin payload
+    WriteBuffer(Message[1], Length(Message)); //                  (Ch. 3.3.3)
+    // end payload
+  end;
+
+  // write an MQTT packet with fixed header and remaining data
+  WriteMQTTPacket(mqptPublish, Flags, Remaining);
   Remaining.Free;
 end;
 
