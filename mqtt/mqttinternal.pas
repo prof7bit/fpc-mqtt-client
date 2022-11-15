@@ -152,6 +152,16 @@ type
     procedure Parse; override;
   end;
 
+  { TMQTTUnsubAck }
+
+  TMQTTUnsubAck = class(TMQTTParsedPacket)
+    PacketID: UInt16;
+    ReasonString: UTF8String;
+    UserProperty: array of TStringPair;
+    ReasonCodes: array of Byte;
+    procedure Parse; override;
+  end;
+
   { TMQTTStream }
 
   TMQTTStream = class helper for TStream
@@ -177,6 +187,44 @@ type
 
 
 implementation
+
+{ TMQTTUnsubAck }
+
+procedure TMQTTUnsubAck.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+  SP: TStringPair;
+begin
+  with Remaining do begin
+    PacketID := ReadInt16Big;                     // Ch. 3.11.2
+
+    // begin properties                           // Ch. 3.11.2.1
+    PropLen := ReadVarInt;                        // Ch. 3.11.2.1.1
+    PropEnd := Position + PropLen;
+    while Position < PropEnd do begin
+      Prop := ReadByte;
+      case Prop of
+        31: ReasonString := ReadMQTTString;       // Ch. 3.11.2.1.2
+        38: begin                                 // Ch. 3.11.2.1.3
+          SP.Key := ReadMQTTString;
+          SP.Value := ReadMQTTString;
+          UserProperty += [SP];
+        end
+      else
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in UNSUBACK package', [Prop]));
+      end;
+    end;
+    // end properties
+
+    // begin payload
+    while Position < Size do begin
+      ReasonCodes += [ReadByte];                  // Ch. 3.11.3
+    end;
+    // end payload
+  end;
+end;
 
 { TMQTTDisconnect }
 
@@ -714,6 +762,7 @@ begin
     mqptSubAck:     Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
     mqptPublish:    Result := TMQTTPublish.Create(Typ, Flags, Remaining);
     mqptDisconnect: Result := TMQTTDisconnect.Create(Typ, Flags, Remaining);
+    mqptUnsubAck:   Result := TMQTTUnsubAck.Create(Typ, Flags, Remaining);
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;

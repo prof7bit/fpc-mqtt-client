@@ -133,6 +133,7 @@ type
     procedure Handle(P: TMQTTSubAck);
     procedure Handle(P: TMQTTPublish);
     procedure Handle(P: TMQTTDisconnect);
+    procedure Handle(P: TMQTTUnsubAck);
     function GetNewPacketID: UInt16;
     function GetNewSubsID: UInt32;
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
@@ -173,6 +174,7 @@ begin
         else if P is TMQTTSubAck      then Client.Handle(P as TMQTTSubAck)
         else if P is TMQTTPublish     then Client.Handle(P as TMQTTPublish)
         else if P is TMQTTDisconnect  then Client.Handle(P as TMQTTDisconnect)
+        else if P is TMQTTUnsubAck    then Client.Handle(P as TMQTTUnsubAck)
         else begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
           Client.Debug('RX: data %s', [P.DebugPrint(True)]);
@@ -351,6 +353,14 @@ procedure TMQTTClient.Handle(P: TMQTTDisconnect);
 begin
   Debug('disconnect: reason %d %s', [P.ReasonCode, P.ReasonString]);
   Disconect;
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTUnsubAck);
+var
+  ReasonCode: Byte;
+begin
+  for ReasonCode in P.ReasonCodes do
+    Debug('unsuback reason code: %d', [ReasonCode]);
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;

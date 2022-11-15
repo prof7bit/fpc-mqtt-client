@@ -21,6 +21,7 @@ If you are interested in this, then you should click the "watch" button in GitHu
 * connect (plain socket, no ssl)
 * auth with username/password
 * subscribe
+* unsubscribe
 * publish
 * retain
 * response topic
