@@ -27,10 +27,11 @@ If you are interested in this, then you should click the "watch" button in GitHu
 * response topic
 * correlation data
 
-## Still missing
+## Still missing (ordered by priority)
 
+* SSL (working on it next)
+* client certificate
 * QoS 1
 * QoS 2
-* SSL
-* alternative auth methods
 * will
+* pluggable alternative auth methods
