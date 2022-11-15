@@ -141,6 +141,17 @@ type
     procedure Parse; override;
   end;
 
+  { TMQTTDisconnect }
+
+  TMQTTDisconnect = class(TMQTTParsedPacket) // Ch. 3.14
+    ReasonCode: Byte;
+    ExpiryInterval: UInt32;
+    ReasonString: UTF8String;
+    UserProperty: array of TStringPair;
+    ServerReference: UTF8String;
+    procedure Parse; override;
+  end;
+
   { TMQTTStream }
 
   TMQTTStream = class helper for TStream
@@ -154,6 +165,7 @@ type
     procedure WriteMQTTPingReq;
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
     procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
+    procedure WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
 
     function ReadVarInt: UInt32;
     function ReadInt16Big: UInt16;
@@ -165,6 +177,51 @@ type
 
 
 implementation
+
+{ TMQTTDisconnect }
+
+procedure TMQTTDisconnect.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+  SP: TStringPair;
+begin
+  with Remaining do begin
+    ReasonCode := ReadByte;                     // Ch. 3.14.2.1
+
+    // begin properties
+
+    // Attention! Property Lenth is omitted entirely if it is zero!
+    // This means if remaining length is less than 2 we MUST NOT read
+    // property length and instead assume zero! This is a special
+    // behavior that happens only in DISCONNET packages!
+    if Remaining.Size < 2 then
+      PropLen := 0
+    else
+      PropLen := ReadVarInt;                      // Ch. 3.14.2.2.1
+
+    PropEnd := Position + PropLen;
+    while Position < PropEnd do begin
+      Prop := ReadByte;
+      case Prop of
+        17: ExpiryInterval := ReadInt32Big;     // Ch. 3.14.2.2.2
+        31: ReasonString := ReadMQTTString;     // Ch. 3.14.2.2.3
+        38: begin                               // Ch. 3.14.2.2.4
+          SP.Key := ReadMQTTString;
+          SP.Value := ReadMQTTString;
+          UserProperty += [SP];
+        end;
+        28: ServerReference := ReadMQTTString;  // Ch. 3.14.2.5
+      else
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in DISCONNECT package', [Prop]));
+      end
+    end;
+    // end properties
+
+    // no payload
+  end;
+end;
 
 { TMQTTPublish }
 
@@ -551,6 +608,31 @@ begin
   Remaining.Free;
 end;
 
+procedure TMQTTStream.WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
+var
+  Remaining: TMemoryStream;
+begin
+  // Ch. 3.10
+  Remaining := TMemoryStream.Create;
+  with Remaining do begin
+    WriteInt16Big(PacketID);        // Ch. 3.10.2
+
+
+    // begin props                  // Ch. 3.10.2.1
+    WriteVarInt(0);
+    // no props
+    // end props
+
+    // begin payload
+    WriteMQTTString(Topic);         // Ch. 3.10.3
+    // end payload
+  end;
+
+  // write an MQTT packet with fixed header and remaining data
+  WriteMQTTPacket(mqptUnsubscribe, %0010, Remaining);
+  Remaining.Free;
+end;
+
 function TMQTTStream.ReadVarInt: UInt32;
 var
   Multiplier: UInt32;
@@ -627,10 +709,11 @@ begin
   if RemLen > 0 then
     Remaining.CopyFrom(Self, RemLen);
   case Typ of
-    mqptConnAck:  Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
-    mqptPingResp: Result := TMQTTPingResp.Create(Typ, Flags, Remaining);
-    mqptSubAck:   Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
-    mqptPublish:  Result := TMQTTPublish.Create(Typ, Flags, Remaining);
+    mqptConnAck:    Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
+    mqptPingResp:   Result := TMQTTPingResp.Create(Typ, Flags, Remaining);
+    mqptSubAck:     Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
+    mqptPublish:    Result := TMQTTPublish.Create(Typ, Flags, Remaining);
+    mqptDisconnect: Result := TMQTTDisconnect.Create(Typ, Flags, Remaining);
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;

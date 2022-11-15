@@ -14,9 +14,11 @@ type
 
   TForm1 = class(TForm)
     ButtonConnect: TButton;
+    ButtonUnsubscribe: TButton;
     ButtonSubscribe: TButton;
     ButtonDisconnect: TButton;
     ButtonPublish: TButton;
+    ComboBoxSubs: TComboBox;
     EditRespTopic: TLabeledEdit;
     EditPubTopic: TLabeledEdit;
     EditPubMessage: TLabeledEdit;
@@ -32,6 +34,7 @@ type
     procedure ButtonDisconnectClick(Sender: TObject);
     procedure ButtonPublishClick(Sender: TObject);
     procedure ButtonSubscribeClick(Sender: TObject);
+    procedure ButtonUnsubscribeClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
@@ -119,7 +122,27 @@ begin
   Ini.WriteString('subscribe', 'topic', EditTopic.Text);
   Res := FClient.Subscribe(EditTopic.Text, @OnRx);
   if Res <> mqeNoError then
-    Debug(Format('subscribe: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
+    Debug(Format('subscribe: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]))
+  else begin
+    ComboBoxSubs.Items.Add(EditTopic.Text);
+    ComboBoxSubs.Text := EditTopic.Text;
+  end;
+end;
+
+procedure TForm1.ButtonUnsubscribeClick(Sender: TObject);
+var
+  TopicFilter: String;
+  Res: TMQTTError;
+begin
+  TopicFilter := ComboBoxSubs.Text;
+  if Text <> '' then begin
+    Res := FClient.Unsubscribe(TopicFilter);
+    if Res = mqeNoError then begin
+      ComboBoxSubs.Items.Delete(ComboBoxSubs.ItemIndex);
+      ComboBoxSubs.ItemIndex := 0;
+    end
+    else
+      Debug(Format('unsubscribe: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));  end;
 end;
 
 procedure TForm1.Debug(Txt: String);

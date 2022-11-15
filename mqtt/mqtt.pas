@@ -132,6 +132,7 @@ type
     procedure Handle(P: TMQTTPingResp);
     procedure Handle(P: TMQTTSubAck);
     procedure Handle(P: TMQTTPublish);
+    procedure Handle(P: TMQTTDisconnect);
     function GetNewPacketID: UInt16;
     function GetNewSubsID: UInt32;
     function ConnectSocket(Host: String; Port: Word): TMQTTError;
@@ -167,10 +168,11 @@ begin
       try
         P := Client.FSocket.ReadMQTTPacket;
         // Client.Debug('RX: %s %s', [P.ClassName, P.DebugPrint(True)]);
-        if      P is TMQTTConnAck  then Client.Handle(P as TMQTTConnAck)
-        else if P is TMQTTPingResp then Client.Handle(P as TMQTTPingResp)
-        else if P is TMQTTSubAck   then Client.Handle(P as TMQTTSubAck)
-        else if P is TMQTTPublish  then Client.Handle(P as TMQTTPublish)
+        if      P is TMQTTConnAck     then Client.Handle(P as TMQTTConnAck)
+        else if P is TMQTTPingResp    then Client.Handle(P as TMQTTPingResp)
+        else if P is TMQTTSubAck      then Client.Handle(P as TMQTTSubAck)
+        else if P is TMQTTPublish     then Client.Handle(P as TMQTTPublish)
+        else if P is TMQTTDisconnect  then Client.Handle(P as TMQTTDisconnect)
         else begin
           Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
           Client.Debug('RX: data %s', [P.DebugPrint(True)]);
@@ -343,6 +345,12 @@ begin
       Debug('BUG! cannot find subscription handler for ID %d, this should never happen! (Topic: %s)',
         [SubID, Topic]);
   end;
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTDisconnect);
+begin
+  Debug('disconnect: reason %d %s', [P.ReasonCode, P.ReasonString]);
+  Disconect;
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;
@@ -546,7 +554,7 @@ begin
   Delete(FSubInfos, I, 1);
   FLock.Release;
 
-  // todo: implement unsubscribe
+  FSocket.WriteMQTTUnsubscribe(ATopicFilter, GetNewPacketID);
 end;
 
 function TMQTTClient.Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;

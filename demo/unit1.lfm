@@ -1,12 +1,14 @@
 object Form1: TForm1
   AnchorSideRight.Side = asrBottom
   Left = 662
-  Height = 613
+  Height = 660
   Top = 277
-  Width = 1092
+  Width = 1024
   Caption = 'MQTT Client Demo'
-  ClientHeight = 613
-  ClientWidth = 1092
+  ClientHeight = 660
+  ClientWidth = 1024
+  Constraints.MinHeight = 660
+  Constraints.MinWidth = 1024
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   LCLVersion = '2.2.5.0'
@@ -14,10 +16,10 @@ object Form1: TForm1
     AnchorSideTop.Control = SynEdit1
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 16
-    Width = 163
+    Width = 238
     Anchors = [akTop, akRight]
     BorderSpacing.Right = 10
     EditLabel.Height = 18
@@ -33,10 +35,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 51
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
@@ -53,10 +55,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 86
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
@@ -73,10 +75,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 121
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
@@ -93,10 +95,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 156
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
@@ -112,9 +114,9 @@ object Form1: TForm1
   inline SynEdit1: TSynEdit
     AnchorSideRight.Control = ButtonConnect
     Left = 16
-    Height = 590
+    Height = 637
     Top = 16
-    Width = 818
+    Width = 675
     BorderSpacing.Right = 85
     Anchors = [akTop, akLeft, akRight, akBottom]
     Color = clWindow
@@ -620,10 +622,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 25
     Top = 198
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 10
     BorderSpacing.Right = 10
@@ -637,10 +639,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = ButtonConnect
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 25
     Top = 228
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 5
     Caption = 'Disconnect'
@@ -653,10 +655,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 273
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 20
     BorderSpacing.Right = 10
@@ -673,10 +675,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 25
     Top = 315
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 10
     BorderSpacing.Right = 10
@@ -690,10 +692,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 360
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 20
     BorderSpacing.Right = 10
@@ -710,10 +712,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 25
     Top = 507
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 10
     BorderSpacing.Right = 10
@@ -727,10 +729,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 395
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
@@ -747,10 +749,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 430
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
@@ -767,10 +769,10 @@ object Form1: TForm1
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
-    Left = 919
+    Left = 776
     Height = 32
     Top = 465
-    Width = 163
+    Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
     BorderSpacing.Right = 10
@@ -780,5 +782,39 @@ object Form1: TForm1
     EditLabel.ParentColor = False
     LabelPosition = lpLeft
     TabOrder = 14
+  end
+  object ComboBoxSubs: TComboBox
+    AnchorSideLeft.Control = EditHost
+    AnchorSideTop.Control = ButtonPublish
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = Owner
+    AnchorSideRight.Side = asrBottom
+    Left = 776
+    Height = 32
+    Top = 547
+    Width = 238
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 15
+    BorderSpacing.Right = 10
+    ItemHeight = 18
+    Style = csDropDownList
+    TabOrder = 15
+  end
+  object ButtonUnsubscribe: TButton
+    AnchorSideLeft.Control = EditHost
+    AnchorSideTop.Control = ComboBoxSubs
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = Owner
+    AnchorSideRight.Side = asrBottom
+    Left = 776
+    Height = 25
+    Top = 589
+    Width = 238
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 10
+    BorderSpacing.Right = 10
+    Caption = 'Unsubscribe'
+    OnClick = ButtonUnsubscribeClick
+    TabOrder = 16
   end
 end
