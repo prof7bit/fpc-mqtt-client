@@ -334,13 +334,15 @@ var
   SubID: UInt32;
   SubInfo: TMQTTSubscriptionInfo;
   Topic: String;
+  UsingAlias: Boolean;
 begin
   Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
+  UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');
   for SubID in P.SubscriptionID do begin
     SubInfo := GetSubInfo(SubID);
     if Assigned(SubInfo.Handler) then begin
-      Debug('publish: fltr: %s tpc: %s msg: %s, QoS: %d, Retain: %s',
-        [SubInfo.TopicFilter, Topic, P.Message, P.QoS, BoolToStr(P.Retain, True)]);
+      Debug('publish: fltr: %s, tpc: %s, alias: %s, msg: %s, QoS: %d, Retain: %s',
+        [SubInfo.TopicFilter, Topic, BoolToStr(UsingAlias, 'yes', 'no'), P.Message, P.QoS, BoolToStr(P.Retain, 'yes', 'no')]);
       PushOnRX(SubInfo, Topic, P.Message, P.RespTopic, P.CorrelData);
     end
     else

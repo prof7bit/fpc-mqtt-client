@@ -1,8 +1,8 @@
 object Form1: TForm1
   AnchorSideRight.Side = asrBottom
-  Left = 662
+  Left = 409
   Height = 660
-  Top = 277
+  Top = 321
   Width = 1024
   Caption = 'MQTT Client Demo'
   ClientHeight = 660
@@ -121,15 +121,15 @@ object Form1: TForm1
     Anchors = [akTop, akLeft, akRight, akBottom]
     Color = clWindow
     Font.Color = clWindowText
-    Font.Height = -13
-    Font.Name = 'Bitstream Vera Sans Mono'
+    Font.Height = -16
+    Font.Name = 'Courier 10 Pitch'
     Font.Pitch = fpFixed
-    Font.Quality = fqNonAntialiased
+    Font.Quality = fqCleartype
     ParentColor = False
     ParentFont = False
     TabOrder = 0
     Gutter.Visible = False
-    Gutter.Width = 57
+    Gutter.Width = 61
     Gutter.MouseActions = <>
     RightGutter.Width = 0
     RightGutter.MouseActions = <>
@@ -586,7 +586,7 @@ object Form1: TForm1
         MouseActions = <>
       end
       object SynGutterLineNumber1: TSynGutterLineNumber
-        Width = 17
+        Width = 21
         MouseActions = <>
         MarkupInfo.Background = clBtnFace
         MarkupInfo.Foreground = clNone

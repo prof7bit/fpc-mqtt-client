@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
-  SynEdit, SynEditKeyCmds, mqtt, inifiles, TypInfo;
+  SynEdit, SynEditKeyCmds, mqtt, inifiles, TypInfo, SynEditMiscClasses;
 
 type
 
@@ -44,6 +44,7 @@ type
     procedure OnDisconnect(Client: TMQTTClient);
     procedure OnConnect(Client: TMQTTClient);
     procedure OnRx(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes);
+    procedure LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);
   public
 
   end;
@@ -75,6 +76,13 @@ begin
   FClient.OnDebug := @Debug;
   FClient.OnDisconnect := @OnDisconnect;
   FClient.OnConnect := @OnConnect;
+
+  {$ifdef windows}
+  SynEdit1.Font.Name := 'Courier New';
+  {$else}
+  SynEdit1.Font.Name := 'DejaVu Sans Mono';
+  {$endif}
+  SynEdit1.OnSpecialLineMarkup := @LogLineColor;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
@@ -175,6 +183,33 @@ begin
     for B in CorrelData do
       S += IntToHex(B, 2) + ' ';
     Debug(Format('OnRX: Correlation Data: %s', [S]));
+  end;
+end;
+
+procedure TForm1.LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);
+var
+  S: String;
+
+  function Mix(CA, CB: TColor; Ratio: Byte): TColor;
+  var
+    R, G, B: Byte;
+    Ratio_: Byte;
+  begin
+    CA := ColorToRGB(CA);
+    CB := ColorToRGB(CB);
+    Ratio_ := 100 - Ratio;
+    R := (Ratio_ * Red(CA)   + Ratio * Red(CB)) div 100;
+    G := (Ratio_ * Green(CA) + Ratio * Green(CB)) div 100;
+    B := (Ratio_ * Blue(CA)  + Ratio * Blue(CB)) div 100;
+    Result := RGBToColor(R, G, B);
+  end;
+
+begin
+  S := SynEdit1.Lines[Line - 1];
+  if Pos('[', S) = 1 then begin
+    Special := True;
+    Markup.Foreground := Mix(SynEdit1.Color, SynEdit1.Font.Color, 40);
+    Markup.Background := clNone;
   end;
 end;
 
