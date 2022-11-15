@@ -430,7 +430,7 @@ begin
   if ID > 0 then
     if Topic <> '' then begin // both are set
       // either find existing and update it...
-      for I := 0 to Length(FTopicAliases) do begin
+      for I := 0 to Length(FTopicAliases) - 1 do begin
         if FTopicAliases[I].ID = ID then begin
           FTopicAliases[I].Topic := Topic;
           exit(Topic);
