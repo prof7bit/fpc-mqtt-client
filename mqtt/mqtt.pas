@@ -35,7 +35,8 @@ unit mqtt;
 interface
 
 uses
-  Classes, sysutils, Sockets, SSockets, syncobjs, mqttinternal, fptimer;
+  Classes, sysutils, Sockets, SSockets, syncobjs, mqttinternal, fptimer,
+  sslsockets, openssl, opensslsockets;
 
 const
   MQTTDefaultKeepalive: UInt16 = 120; // seconds
@@ -57,7 +58,8 @@ type
     mqeNotSubscribed = 8,
     mqeInvalidQoS = 9,
     mqeRetainUnavail = 10,
-    mqeNotYetImplemented = 11
+    mqeNotYetImplemented = 11,
+    mqeSSLNotSupported = 12
   );
 
   TMQTTClient = class;
@@ -101,6 +103,7 @@ type
   protected
     FListenThread: TMQTTLIstenThread;
     FSocket: TInetSocket;
+    FSSLSocketHandler: TSSLSocketHandler;
     FClosing: Boolean;
     FOnDebug: TMQTTDebugFunc;
     FOnConnect: TMQTTConnectFunc;
@@ -136,14 +139,14 @@ type
     procedure Handle(P: TMQTTUnsubAck);
     function GetNewPacketID: UInt16;
     function GetNewSubsID: UInt32;
-    function ConnectSocket(Host: String; Port: Word): TMQTTError;
+    function ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
     function GetSubInfo(SubID: UInt32): TMQTTSubscriptionInfo;
     function GetSubInfo(TopicFilter: String): TMQTTSubscriptionInfo;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function Connect(Host: String; Port: Word; ID, User, Pass: String): TMQTTError;
+    function Connect(Host: String; Port: Word; ID, User, Pass: String; SSL: Boolean): TMQTTError;
     function Disconect: TMQTTError;
     function Subscribe(ATopicFilter: String; AHandler: TMQTTRXFunc): TMQTTError;
     function Unsubscribe(ATopicFilter: String): TMQTTError;
@@ -165,8 +168,12 @@ var
   P: TMQTTParsedPacket;
 begin
   repeat
-    if Client.Connected then begin
+    if Client.Connected and not Client.FClosing then begin
       try
+        // fixme: need to use something like select() to avoid waiting
+        // in the blocking stream read all the time. Ideally I should be
+        // able to exit the waiting at any time without raising exceptions.
+
         P := Client.FSocket.ReadMQTTPacket;
         // Client.Debug('RX: %s %s', [P.ClassName, P.DebugPrint(True)]);
         if      P is TMQTTConnAck     then Client.Handle(P as TMQTTConnAck)
@@ -197,7 +204,7 @@ end;
 constructor TMQTTLIstenThread.Create(AClient: TMQTTClient);
 begin
   inherited Create(True);
-  FreeOnTerminate := True;
+  FreeOnTerminate := False;
   Client := AClient;
   Start;
 end;
@@ -385,14 +392,29 @@ begin
   FLock.Release;
 end;
 
-function TMQTTClient.ConnectSocket(Host: String; Port: Word): TMQTTError;
+function TMQTTClient.ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
 begin
   if Connected then
     Result := mqeAlreadyConnected
   else begin
     FClosing := False;
     try
-      FSocket := TInetSocket.Create(Host, Port);
+      if SSL then begin
+        if not InitSSLInterface then begin
+          Debug('ssl version 1.x not found, trying version 3');
+          openssl.DLLVersions[1] := '.3';
+        end;
+        if not InitSSLInterface then begin
+          Debug('ssl not supported');
+          exit(mqeSSLNotSupported);
+        end;
+        FSSLSocketHandler := TSSLSocketHandler.GetDefaultHandler;
+        FSocket := TInetSocket.Create(Host, Port, FSSLSocketHandler);
+        FSocket.Connect;
+      end
+      else begin
+        FSocket := TInetSocket.Create(Host, Port); // connect is implicit without ssl
+      end;
       FListenWake.SetEvent;
       Result := mqeNoError;
     except
@@ -475,14 +497,15 @@ begin
   if Connected then
     Disconect;
   FListenThread.WaitFor;
+  FListenThread.Free;
   FreeAndNil(FLock);
   FreeAndNil(FListenWake);
   inherited Destroy;
 end;
 
-function TMQTTClient.Connect(Host: String; Port: Word; ID, User, Pass: String): TMQTTError;
+function TMQTTClient.Connect(Host: String; Port: Word; ID, User, Pass: String; SSL: Boolean): TMQTTError;
 begin
-  Result := ConnectSocket(Host, Port);
+  Result := ConnectSocket(Host, Port, SSL);
   if Result = mqeNoError then begin
     FKeepalive := MQTTDefaultKeepalive;
     FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive);
@@ -496,8 +519,13 @@ begin
     exit(mqeNotConnected);
 
   FClosing := True;
-  fpshutdown(FSocket.Handle, SHUT_RDWR);
-  FreeAndNil(FSocket);
+  if Assigned(FSSLSocketHandler) then
+    FSSLSocketHandler.Shutdown(True)
+  else
+    fpshutdown(FSocket.Handle, SHUT_RDWR);
+  FSocket.Free;
+  FSocket := nil;
+  FSSLSocketHandler := nil;
   FLock.Acquire;
   FRXQueue := [];
   FSubInfos := [];

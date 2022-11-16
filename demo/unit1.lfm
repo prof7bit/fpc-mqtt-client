@@ -51,13 +51,13 @@ object Form1: TForm1
   end
   object EditID: TLabeledEdit
     AnchorSideLeft.Control = EditHost
-    AnchorSideTop.Control = EditPort
+    AnchorSideTop.Control = CheckBoxSSL
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 86
+    Top = 111
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -77,7 +77,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 121
+    Top = 146
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -97,7 +97,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 156
+    Top = 181
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -122,7 +122,7 @@ object Form1: TForm1
     Color = clWindow
     Font.Color = clWindowText
     Font.Height = -16
-    Font.Name = 'Courier 10 Pitch'
+    Font.Name = 'DejaVu Sans Mono'
     Font.Pitch = fpFixed
     Font.Quality = fqCleartype
     ParentColor = False
@@ -624,7 +624,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 198
+    Top = 223
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 10
@@ -641,7 +641,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 228
+    Top = 253
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 5
@@ -657,7 +657,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 273
+    Top = 298
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 20
@@ -677,7 +677,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 315
+    Top = 340
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 10
@@ -694,7 +694,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 360
+    Top = 385
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 20
@@ -714,7 +714,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 507
+    Top = 532
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 10
@@ -731,7 +731,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 395
+    Top = 420
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -751,7 +751,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 430
+    Top = 455
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -771,7 +771,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 465
+    Top = 490
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -791,7 +791,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 547
+    Top = 572
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 15
@@ -808,7 +808,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 589
+    Top = 614
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 10
@@ -816,5 +816,17 @@ object Form1: TForm1
     Caption = 'Unsubscribe'
     OnClick = ButtonUnsubscribeClick
     TabOrder = 16
+  end
+  object CheckBoxSSL: TCheckBox
+    AnchorSideLeft.Control = EditHost
+    AnchorSideTop.Control = EditPort
+    AnchorSideTop.Side = asrBottom
+    Left = 776
+    Height = 22
+    Top = 86
+    Width = 50
+    BorderSpacing.Top = 3
+    Caption = 'SSL'
+    TabOrder = 17
   end
 end

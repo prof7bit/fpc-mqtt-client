@@ -18,6 +18,7 @@ type
     ButtonSubscribe: TButton;
     ButtonDisconnect: TButton;
     ButtonPublish: TButton;
+    CheckBoxSSL: TCheckBox;
     ComboBoxSubs: TComboBox;
     EditRespTopic: TLabeledEdit;
     EditPubTopic: TLabeledEdit;
@@ -66,6 +67,7 @@ begin
   EditID.Text := Ini.ReadString('server', 'id', '');
   EditUser.Text := Ini.ReadString('server', 'user', '');
   EditPass.Text := Ini.ReadString('server', 'pass', '');
+  CheckBoxSSL.Checked := Ini.ReadBool('server', 'ssl', False);
   EditTopic.Text := Ini.ReadString('subscribe', 'topic', '');
   EditPubTopic.Text := Ini.ReadString('publish', 'topic', '');
   EditPubMessage.Text := Ini.ReadString('publish', 'message', '');
@@ -99,7 +101,9 @@ begin
   Ini.WriteString('server', 'id', EditID.Text);
   Ini.WriteString('server', 'user', EditUser.Text);
   Ini.WriteString('server', 'pass', EditPass.Text);
-  Res := FClient.Connect(EditHost.Text, StrToIntDef(EditPort.Text, 1883), EditID.Text, EditUser.Text, EditPass.Text);
+  Ini.WriteBool('server', 'ssl', CheckBoxSSL.Checked);
+  Res := FClient.Connect(EditHost.Text, StrToIntDef(EditPort.Text, 1883),
+    EditID.Text, EditUser.Text, EditPass.Text, CheckBoxSSL.Checked);
   if Res <> mqeNoError then
     Debug(Format('connect: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
 end;

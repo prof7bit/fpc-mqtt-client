@@ -18,7 +18,7 @@ If you are interested in this, then you should click the "watch" button in GitHu
 
 ## Already implemented
 
-* connect (plain socket, no ssl)
+* connect (plain and SSL)
 * auth with username/password
 * subscribe
 * unsubscribe
@@ -29,8 +29,7 @@ If you are interested in this, then you should click the "watch" button in GitHu
 
 ## Still missing (ordered by priority)
 
-* SSL (working on it next)
-* client certificate
+* client certificate (<- working on it next)
 * QoS 1
 * QoS 2
 * will
