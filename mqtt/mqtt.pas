@@ -230,7 +230,7 @@ begin
   fpFD_ZERO(ES);
   fpFD_SET(Handle, ES);
   TV.tv_sec := 0;
-  TV.tv_usec := 100000;
+  TV.tv_usec := 500000;
   Sel := fpSelect(Handle + 1, @RS, nil, @ES, @TV);
   if Sel = 0 then
     Result := mqwrTimeout
