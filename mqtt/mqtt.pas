@@ -154,8 +154,8 @@ type
     function GetNewPacketID: UInt16;
     function GetNewSubsID: UInt32;
     function ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
-    function GetSubInfo(SubID: UInt32): TMQTTSubscriptionInfo;
-    function GetSubInfo(TopicFilter: String): TMQTTSubscriptionInfo;
+    function GetSubInfo(SubID: UInt32; out Info: TMQTTSubscriptionInfo; out Index: Integer): Boolean;
+    function GetSubInfo(TopicFilter: String; out Info: TMQTTSubscriptionInfo; out Index: Integer): Boolean;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
   public
     constructor Create(AOwner: TComponent); override;
@@ -435,12 +435,12 @@ var
   SubInfo: TMQTTSubscriptionInfo;
   Topic: String;
   UsingAlias: Boolean;
+  Index: Integer;
 begin
   Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
   UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');
   for SubID in P.SubscriptionID do begin
-    SubInfo := GetSubInfo(SubID);
-    if Assigned(SubInfo.Handler) then begin
+    if GetSubInfo(SubID, SubInfo, Index) then begin
       Debug('publish: fltr: %s, tpc: %s, alias: %s, msg: %s, QoS: %d, Retain: %s',
         [SubInfo.TopicFilter, Topic, BoolToStr(UsingAlias, 'yes', 'no'), P.Message, P.QoS, BoolToStr(P.Retain, 'yes', 'no')]);
       PushOnRX(SubInfo, Topic, P.Message, P.RespTopic, P.CorrelData);
@@ -522,20 +522,24 @@ begin
   end;
 end;
 
-function TMQTTClient.GetSubInfo(SubID: UInt32): TMQTTSubscriptionInfo;
+function TMQTTClient.GetSubInfo(SubID: UInt32; out Info: TMQTTSubscriptionInfo; out Index: Integer): Boolean;
 begin
-  for Result in FSubInfos do
-    if Result.SubID = SubID then
-      exit;
-  Result := Default(TMQTTSubscriptionInfo);
+  Index := 0;
+  for Info in FSubInfos do
+    if Info.SubID = SubID then
+      exit(True);
+    Inc(Index);
+  Result := False;
 end;
 
-function TMQTTClient.GetSubInfo(TopicFilter: String): TMQTTSubscriptionInfo;
+function TMQTTClient.GetSubInfo(TopicFilter: String; out Info: TMQTTSubscriptionInfo; out Index: Integer): Boolean;
 begin
-  for Result in FSubInfos do
-    if Result.TopicFilter = TopicFilter then
-      exit;
-  Result := Default(TMQTTSubscriptionInfo);;
+  Index := 0;
+  for Info in FSubInfos do
+    if Info.TopicFilter = TopicFilter then
+      exit(True);
+    Inc(Index);
+  Result := False;
 end;
 
 function TMQTTClient.HandleTopicAlias(ID: UInt16; Topic: String): String;
@@ -664,23 +668,17 @@ function TMQTTClient.Unsubscribe(ATopicFilter: String): TMQTTError;
 var
   Found: Boolean = False;
   Info: TMQTTSubscriptionInfo;
-  I: Integer = 0;
+  Index: Integer = 0;
 begin
   Result := mqeNoError;
   FLock.Acquire;
-  for Info in FSubInfos do begin
-    if ATopicFilter = Info.TopicFilter then begin
-      Found := True;
-      break;
-    end;
-    Inc(I);
-  end;
+  Found := GetSubInfo(ATopicFilter, Info, Index);
   if not Found then begin
     FLock.Release;
     exit(mqeNotSubscribed);
   end;
 
-  Delete(FSubInfos, I, 1);
+  Delete(FSubInfos, Index, 1);
   FLock.Release;
 
   FSocket.WriteMQTTUnsubscribe(ATopicFilter, GetNewPacketID);
