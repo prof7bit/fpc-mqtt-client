@@ -62,6 +62,12 @@ type
     mqeSSLNotSupported = 12
   );
 
+  TMQTTSocketWaitResult = (
+    mqwrData,
+    mqwrTimeout,
+    mqwrError
+  );
+
   TMQTTClient = class;
   TMQTTDebugFunc = procedure(Txt: String) of object;
   TMQTTConnectFunc = procedure(AClient: TMQTTClient) of object;
@@ -87,6 +93,15 @@ type
     Handler: TMQTTRXFunc;
   end;
 
+  { TMQTTSocket }
+
+  TMQTTSocket = class(TInetSocket)
+    FSSLHandler: TSocketHandler;
+    constructor CreateSSL(const AHost: String; APort: Word);
+    procedure Shutdown;
+    function Wait: TMQTTSocketWaitResult;
+  end;
+
   { TMQTTLIstenThread }
 
   TMQTTLIstenThread = class(TThread)
@@ -102,8 +117,7 @@ type
   TMQTTClient = class(TComponent)
   protected
     FListenThread: TMQTTLIstenThread;
-    FSocket: TInetSocket;
-    FSSLSocketHandler: TSSLSocketHandler;
+    FSocket: TMQTTSocket;
     FClosing: Boolean;
     FOnDebug: TMQTTDebugFunc;
     FOnConnect: TMQTTConnectFunc;
@@ -160,39 +174,118 @@ type
   end;
 
 implementation
+{$ifdef unix}
+uses
+  BaseUnix;
+{$else}
+uses
+  WinSock2;
+
+procedure fpFD_ZERO(out nset: TFDSet);
+begin
+  FD_ZERO(nset);
+end;
+
+procedure fpFD_SET(fdno: LongInt; var nset: TFDSet);
+begin
+  FD_SET(fdno, nset);
+end;
+
+function fpSelect(N: LongInt; readfds, writefds, exceptfds: pfdset; TimeOut: PTimeVal): LongInt;
+begin
+  Result := select(N, readfds, writefds, exceptfds, TimeOut);
+end;
+
+Function fpFD_ISSET (fdno: LongInt; var nset: TFDSet): LongInt;
+begin
+  Result := LongInt(FD_ISSET(fdno, nset));
+end;
+{$endif}
+
+{ TMQTTSocket }
+
+constructor TMQTTSocket.CreateSSL(const AHost: String; APort: Word);
+begin
+  FSSLHandler := TSSLSocketHandler.GetDefaultHandler;
+  Inherited Create(AHost, APort, FSSLHandler);
+  Connect;
+end;
+
+procedure TMQTTSocket.Shutdown;
+begin
+  if Assigned(FSSLHandler) then
+    FSSLHandler.Shutdown(True)
+  else
+    fpshutdown(Handle, SHUT_RDWR);
+end;
+
+function TMQTTSocket.Wait: TMQTTSocketWaitResult;
+var
+  RS, ES: TFDSet;
+  TV: TTimeVal;
+  Sel: Integer;
+begin
+  fpFD_ZERO(RS);
+  fpFD_SET(Handle, RS);
+  fpFD_ZERO(ES);
+  fpFD_SET(Handle, ES);
+  TV.tv_sec := 0;
+  TV.tv_usec := 100000;
+  Sel := fpSelect(Handle + 1, @RS, nil, @ES, @TV);
+  if Sel = 0 then
+    Result := mqwrTimeout
+  else if fpFD_ISSET(Handle, RS) > 0 then
+    Result := mqwrData
+  else
+    Result := mqwrError;
+end;
 
 { TMQTTLIstenThread }
 
 procedure TMQTTLIstenThread.Execute;
 var
   P: TMQTTParsedPacket;
+  WR: TMQTTSocketWaitResult;
+
 begin
   repeat
     if Client.Connected and not Client.FClosing then begin
       try
-        // fixme: need to use something like select() to avoid waiting
-        // in the blocking stream read all the time. Ideally I should be
-        // able to exit the waiting at any time without raising exceptions.
-
-        P := Client.FSocket.ReadMQTTPacket;
-        // Client.Debug('RX: %s %s', [P.ClassName, P.DebugPrint(True)]);
-        if      P is TMQTTConnAck     then Client.Handle(P as TMQTTConnAck)
-        else if P is TMQTTPingResp    then Client.Handle(P as TMQTTPingResp)
-        else if P is TMQTTSubAck      then Client.Handle(P as TMQTTSubAck)
-        else if P is TMQTTPublish     then Client.Handle(P as TMQTTPublish)
-        else if P is TMQTTDisconnect  then Client.Handle(P as TMQTTDisconnect)
-        else if P is TMQTTUnsubAck    then Client.Handle(P as TMQTTUnsubAck)
+        WR := Client.FSocket.Wait;
+        if Client.FClosing then
+          Client.Debug('wait() returned, socket was closed locally')
         else begin
-          Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
-          Client.Debug('RX: data %s', [P.DebugPrint(True)]);
-        end;
-        P.Free;
+          case WR of
+            mqwrTimeout: begin
+              // nothing
+            end;
+            mqwrError: begin
+              Client.Debug('wait() returned error, closing connection');
+              Client.Disconect;
+            end;
+            mqwrData: begin
+              P := Client.FSocket.ReadMQTTPacket;
+              // Client.Debug('RX: %s %s', [P.ClassName, P.DebugPrint(True)]);
+              if      P is TMQTTConnAck     then Client.Handle(P as TMQTTConnAck)
+              else if P is TMQTTPingResp    then Client.Handle(P as TMQTTPingResp)
+              else if P is TMQTTSubAck      then Client.Handle(P as TMQTTSubAck)
+              else if P is TMQTTPublish     then Client.Handle(P as TMQTTPublish)
+              else if P is TMQTTDisconnect  then Client.Handle(P as TMQTTDisconnect)
+              else if P is TMQTTUnsubAck    then Client.Handle(P as TMQTTUnsubAck)
+              else begin
+                Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
+                Client.Debug('RX: data %s', [P.DebugPrint(True)]);
+              end;
+              P.Free;
+            end;
+          end;
+        end
+
       except
         on E: Exception do begin
-          if not Client.FClosing then begin
-            Client.Debug('%s: %s', [E.ClassName, E.Message]);
-            Client.Disconect;
-          end;
+          writeln('read raised error');
+          Client.Debug('%s: %s', [E.ClassName, E.Message]);
+          Client.Disconect;
         end;
       end;
     end
@@ -400,20 +493,20 @@ begin
     FClosing := False;
     try
       if SSL then begin
+        {$ifndef windows}
         if not InitSSLInterface then begin
           Debug('ssl version 1.x not found, trying version 3');
           openssl.DLLVersions[1] := '.3';
         end;
+        {$endif}
         if not InitSSLInterface then begin
           Debug('ssl not supported');
           exit(mqeSSLNotSupported);
         end;
-        FSSLSocketHandler := TSSLSocketHandler.GetDefaultHandler;
-        FSocket := TInetSocket.Create(Host, Port, FSSLSocketHandler);
-        FSocket.Connect;
+        FSocket := TMQTTSocket.CreateSSL(Host, Port);
       end
       else begin
-        FSocket := TInetSocket.Create(Host, Port); // connect is implicit without ssl
+        FSocket := TMQTTSocket.Create(Host, Port); // connect is implicit without ssl
       end;
       FListenWake.SetEvent;
       Result := mqeNoError;
@@ -519,13 +612,9 @@ begin
     exit(mqeNotConnected);
 
   FClosing := True;
-  if Assigned(FSSLSocketHandler) then
-    FSSLSocketHandler.Shutdown(True)
-  else
-    fpshutdown(FSocket.Handle, SHUT_RDWR);
+  FSocket.Shutdown;
   FSocket.Free;
   FSocket := nil;
-  FSSLSocketHandler := nil;
   FLock.Acquire;
   FRXQueue := [];
   FSubInfos := [];

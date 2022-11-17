@@ -23,20 +23,13 @@
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
-            <OtherUnitFiles Value=".."/>
+            <OtherUnitFiles Value="..;../mqtt"/>
             <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
           </SearchPaths>
           <CodeGeneration>
             <TargetCPU Value="x86_64"/>
             <TargetOS Value="win64"/>
           </CodeGeneration>
-          <Linking>
-            <Options>
-              <Win32>
-                <GraphicApplication Value="True"/>
-              </Win32>
-            </Options>
-          </Linking>
         </CompilerOptions>
       </Item>
     </BuildModes>
@@ -103,32 +96,4 @@
       </Options>
     </Linking>
   </CompilerOptions>
-  <Debugging>
-    <Exceptions>
-      <Item>
-        <Name Value="EAbort"/>
-      </Item>
-      <Item>
-        <Name Value="ECodetoolError"/>
-      </Item>
-      <Item>
-        <Name Value="EFOpenError"/>
-      </Item>
-      <Item>
-        <Name Value="ESocketError"/>
-      </Item>
-      <Item>
-        <Name Value="EReadError"/>
-      </Item>
-      <Item>
-        <Name Value="EMQTTUnexpectedProperty"/>
-      </Item>
-      <Item>
-        <Name Value="RunError(216)"/>
-      </Item>
-      <Item>
-        <Name Value="EAccessViolation"/>
-      </Item>
-    </Exceptions>
-  </Debugging>
 </CONFIG>
