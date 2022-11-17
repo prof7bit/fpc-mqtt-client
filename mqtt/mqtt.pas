@@ -225,6 +225,14 @@ var
   TV: TTimeVal;
   Sel: Integer;
 begin
+  // when using ssl we must first check available bytes in the ssl handler
+  // before waiting on the underlying socket, because when data has already
+  // arrived and already been decrypted but not yet completely read we won't
+  // see anything being signaled on the underlying socket anymore.
+  if Assigned(FSSLHandler) then
+    if FSSLHandler.BytesAvailable > 0 then
+      exit(mqwrData);
+
   fpFD_ZERO(RS);
   fpFD_SET(Handle, RS);
   fpFD_ZERO(ES);
