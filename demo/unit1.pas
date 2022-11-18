@@ -118,6 +118,7 @@ end;
 procedure TForm1.ButtonDisconnectClick(Sender: TObject);
 begin
   FClient.Disconect;
+  ComboBoxSubs.Clear;
 end;
 
 procedure TForm1.ButtonPublishClick(Sender: TObject);
