@@ -689,7 +689,7 @@ begin
   end;
   FLock.Release;
   if Found then
-    exit(mqeAlreadyConnected);
+    exit(mqeAlreadySubscribed);
 
   SubsID := GetNewSubsID;
   FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, SubsID);
