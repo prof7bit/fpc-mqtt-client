@@ -39,7 +39,7 @@ uses
   sslsockets, openssl, opensslsockets;
 
 const
-  MQTTDefaultKeepalive: UInt16 = 120; // seconds
+  MQTTDefaultKeepalive: UInt16 = 50; // seconds
 
   HOUR = 1 / 24;
   MINUTE = HOUR / 60;
