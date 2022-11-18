@@ -6,7 +6,8 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
-  SynEdit, SynEditKeyCmds, mqtt, inifiles, TypInfo, SynEditMiscClasses;
+  SynEdit, SynEditKeyCmds, mqtt, inifiles, TypInfo, SynEditMiscClasses,
+  sslsockets, opensslsockets;
 
 type
 
@@ -45,6 +46,7 @@ type
     procedure OnDisconnect(Client: TMQTTClient);
     procedure OnConnect(Client: TMQTTClient);
     procedure OnRx(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes);
+    procedure OnVerifySSL(Clinet: TMQTTClient; Handler: TOpenSSLSocketHandler; var Allow: Boolean);
     procedure LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);
   public
 
@@ -78,6 +80,11 @@ begin
   FClient.OnDebug := @Debug;
   FClient.OnDisconnect := @OnDisconnect;
   FClient.OnConnect := @OnConnect;
+  FClient.OnVerifySSL := @OnVerifySSL;
+  if FileExists('client.crt') and FileExists('client.key') then begin
+    FClient.ClientCert := 'client.crt';
+    FClient.ClientKey := 'client.key';
+  end;
 
   {$ifdef windows}
   SynEdit1.Font.Name := 'Courier New';
@@ -158,8 +165,13 @@ begin
 end;
 
 procedure TForm1.Debug(Txt: String);
+var
+  Lines: array of String;
+  Line: String;
 begin
-  SynEdit1.Append(Txt);
+  Lines := Txt.Split(LineEnding);
+  for Line in Lines do
+    SynEdit1.Append(Line);
   SynEdit1.ExecuteCommand(ecEditorBottom, #0, nil);
   SynEdit1.ExecuteCommand(ecLineStart, #0, nil);
 end;
@@ -188,6 +200,18 @@ begin
       S += IntToHex(B, 2) + ' ';
     Debug(Format('OnRX: Correlation Data: %s', [S]));
   end;
+end;
+
+procedure TForm1.OnVerifySSL(Clinet: TMQTTClient; Handler: TOpenSSLSocketHandler; var Allow: Boolean);
+var
+  C: Char;
+  S: String = '';
+begin
+  for C in Handler.SSL.PeerFingerprint('SHA256') do begin
+    S += IntToHex(Ord(C), 2);
+  end;
+  Debug('OnVerifySSL cert fingerprint: ' + S);
+  Allow := True;
 end;
 
 procedure TForm1.LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);

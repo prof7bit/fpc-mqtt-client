@@ -20,6 +20,7 @@ If you are interested in this, then you should click the "watch" button in GitHu
 
 * connect (plain and SSL)
 * auth with username/password
+* auth with cert + key
 * subscribe
 * unsubscribe
 * publish
@@ -29,7 +30,6 @@ If you are interested in this, then you should click the "watch" button in GitHu
 
 ## Still missing (ordered by priority)
 
-* client certificate (<- working on it next)
 * QoS 1
 * QoS 2
 * will

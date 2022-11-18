@@ -59,7 +59,10 @@ type
     mqeInvalidQoS = 9,
     mqeRetainUnavail = 10,
     mqeNotYetImplemented = 11,
-    mqeSSLNotSupported = 12
+    mqeSSLNotSupported = 12,
+    mqeSSLVerifyError = 13,
+    mqeCertFileNotFound = 14,
+    mqeKeyFileNotFound = 15
   );
 
   TMQTTSocketWaitResult = (
@@ -73,6 +76,7 @@ type
   TMQTTConnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTDisconnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTRXFunc = procedure(AClient: TMQTTClient; ATopic, AMessage, AResponseTopic: String; ACorrelData: TBytes) of object;
+  TMQTTVerifySSLFunc = procedure(AClient: TMQTTClient; ASSLHandler: TOpenSSLSocketHandler; var Allow: Boolean) of object;
 
   TMQTTSubscriptionInfo = record
     TopicFilter: String;
@@ -96,8 +100,8 @@ type
   { TMQTTSocket }
 
   TMQTTSocket = class(TInetSocket)
-    FSSLHandler: TSocketHandler;
-    constructor CreateSSL(const AHost: String; APort: Word);
+    FSSLHandler: TSSLSocketHandler;
+    constructor CreateSSL(const AHost: String; APort: Word; Cert, Key: String);
     procedure Shutdown;
     function Wait: TMQTTSocketWaitResult;
   end;
@@ -122,6 +126,9 @@ type
     FOnDebug: TMQTTDebugFunc;
     FOnConnect: TMQTTConnectFunc;
     FOnDisconnect: TMQTTDisconnectFunc;
+    FOnVerifySSL: TMQTTVerifySSLFunc;
+    FClientCert: String;
+    FClientKey: String;
     FSubInfos: array of TMQTTSubscriptionInfo;
     FRXQueue: array of TMQTTRXData;
     FTopicAliases: array of TTopicAlias;
@@ -168,9 +175,12 @@ type
     function Connected: Boolean;
     property RetainAvail: Boolean read FRetainAvail;
     property MaxQoS: Byte read FMaxQos;
+    property ClientCert: String read FClientCert write FClientCert;
+    property ClientKey: String read FClientKey write FClientKey;
     property OnDebug: TMQTTDebugFunc read FOnDebug write FOnDebug;
     property OnDisconnect: TMQTTDisconnectFunc read FOnDisconnect write FOnDisconnect;
     property OnConnect: TMQTTConnectFunc read FOnConnect write FOnConnect;
+    property OnVerifySSL: TMQTTVerifySSLFunc read FOnVerifySSL write FOnVerifySSL;
   end;
 
 implementation
@@ -204,9 +214,11 @@ end;
 
 { TMQTTSocket }
 
-constructor TMQTTSocket.CreateSSL(const AHost: String; APort: Word);
+constructor TMQTTSocket.CreateSSL(const AHost: String; APort: Word; Cert, Key: String);
 begin
   FSSLHandler := TSSLSocketHandler.GetDefaultHandler;
+  FSSLHandler.CertificateData.Certificate.FileName := Cert;
+  FSSLHandler.CertificateData.PrivateKey.FileName := Key;
   Inherited Create(AHost, APort, FSSLHandler);
   Connect;
 end;
@@ -494,38 +506,56 @@ begin
 end;
 
 function TMQTTClient.ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
+var
+  Allow: Boolean = True;
+  S: TMQTTSocket;
 begin
   if Connected then
-    Result := mqeAlreadyConnected
-  else begin
-    FClosing := False;
-    try
-      if SSL then begin
-        {$ifndef windows}
-        if not InitSSLInterface then begin
-          Debug('ssl version 1.x not found, trying version 3');
-          openssl.DLLVersions[1] := '.3';
-        end;
-        {$endif}
-        if not InitSSLInterface then begin
-          Debug('ssl not supported');
-          exit(mqeSSLNotSupported);
-        end;
-        FSocket := TMQTTSocket.CreateSSL(Host, Port);
-      end
-      else begin
-        FSocket := TMQTTSocket.Create(Host, Port); // connect is implicit without ssl
+    exit(mqeAlreadyConnected);
+
+  if ClientCert <> '' then
+    if not FileExists(ClientCert) then
+      exit(mqeCertFileNotFound);
+
+  if ClientKey <> '' then
+    if not FileExists(ClientKey) then
+      exit(mqeKeyFileNotFound);
+
+  FClosing := False;
+  try
+    if SSL then begin
+      {$ifndef windows}
+      if not InitSSLInterface then begin
+        Debug('ssl version 1.x not found, trying version 3');
+        openssl.DLLVersions[1] := '.3';
       end;
-      FListenWake.SetEvent;
-      Result := mqeNoError;
-    except
-      on E: ESocketError do begin
-        if E.Code = seHostNotFound then
-          Result := mqeHostNotFound
-        else
-          Result := mqeConnectFailed;
-        FSocket := nil;
+      {$endif}
+      if not InitSSLInterface then begin
+        Debug('ssl not supported');
+        exit(mqeSSLNotSupported);
       end;
+      S := TMQTTSocket.CreateSSL(Host, Port, FClientCert, FClientKey);
+      if Assigned(FOnVerifySSL) then begin
+        FOnVerifySSL(Self, S.FSSLHandler as TOpenSSLSocketHandler, Allow);
+        if not Allow then begin
+          S.Free;
+          exit(mqeSSLVerifyError);
+        end;
+      end;
+      FSocket := S;
+    end
+    else begin
+      FSocket := TMQTTSocket.Create(Host, Port); // connect is implicit without ssl
+    end;
+    FListenWake.SetEvent;
+    Result := mqeNoError;
+  except
+    on E: ESocketError do begin
+      if E.Code = seHostNotFound then
+        Result := mqeHostNotFound
+      else
+        Result := mqeConnectFailed;
+      FSocket := nil;
     end;
   end;
 end;
