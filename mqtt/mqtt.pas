@@ -563,20 +563,22 @@ end;
 function TMQTTClient.GetSubInfo(SubID: UInt32; out Info: TMQTTSubscriptionInfo; out Index: Integer): Boolean;
 begin
   Index := 0;
-  for Info in FSubInfos do
+  for Info in FSubInfos do begin
     if Info.SubID = SubID then
       exit(True);
     Inc(Index);
+  end;
   Result := False;
 end;
 
 function TMQTTClient.GetSubInfo(TopicFilter: String; out Info: TMQTTSubscriptionInfo; out Index: Integer): Boolean;
 begin
   Index := 0;
-  for Info in FSubInfos do
+  for Info in FSubInfos do begin
     if Info.TopicFilter = TopicFilter then
       exit(True);
     Inc(Index);
+  end;
   Result := False;
 end;
 
