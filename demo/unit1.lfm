@@ -1,11 +1,11 @@
 object Form1: TForm1
   AnchorSideRight.Side = asrBottom
   Left = 409
-  Height = 660
+  Height = 726
   Top = 321
   Width = 1024
   Caption = 'MQTT Client Demo'
-  ClientHeight = 660
+  ClientHeight = 726
   ClientWidth = 1024
   Constraints.MinHeight = 660
   Constraints.MinWidth = 1024
@@ -114,7 +114,7 @@ object Form1: TForm1
   inline SynEdit1: TSynEdit
     AnchorSideRight.Control = ButtonConnect
     Left = 16
-    Height = 637
+    Height = 703
     Top = 16
     Width = 675
     BorderSpacing.Right = 85
@@ -624,10 +624,10 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 223
+    Top = 218
     Width = 238
     Anchors = [akTop, akLeft, akRight]
-    BorderSpacing.Top = 10
+    BorderSpacing.Top = 5
     BorderSpacing.Right = 10
     Caption = 'Connect'
     OnClick = ButtonConnectClick
@@ -641,7 +641,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 253
+    Top = 248
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 5
@@ -657,7 +657,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 298
+    Top = 293
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 20
@@ -671,16 +671,16 @@ object Form1: TForm1
   end
   object ButtonSubscribe: TButton
     AnchorSideLeft.Control = EditHost
-    AnchorSideTop.Control = EditTopic
+    AnchorSideTop.Control = SpinEditSubID
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 340
+    Top = 365
     Width = 238
     Anchors = [akTop, akLeft, akRight]
-    BorderSpacing.Top = 10
+    BorderSpacing.Top = 5
     BorderSpacing.Right = 10
     Caption = 'Subscribe'
     OnClick = ButtonSubscribeClick
@@ -694,7 +694,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 385
+    Top = 410
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 20
@@ -714,10 +714,10 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 532
+    Top = 551
     Width = 238
     Anchors = [akTop, akLeft, akRight]
-    BorderSpacing.Top = 10
+    BorderSpacing.Top = 4
     BorderSpacing.Right = 10
     Caption = 'Publish'
     OnClick = ButtonPublishClick
@@ -731,7 +731,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 420
+    Top = 445
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -751,7 +751,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 455
+    Top = 480
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -771,7 +771,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 490
+    Top = 515
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 3
@@ -791,7 +791,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 572
+    Top = 591
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 15
@@ -808,10 +808,10 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 614
+    Top = 628
     Width = 238
     Anchors = [akTop, akLeft, akRight]
-    BorderSpacing.Top = 10
+    BorderSpacing.Top = 5
     BorderSpacing.Right = 10
     Caption = 'Unsubscribe'
     OnClick = ButtonUnsubscribeClick
@@ -828,5 +828,20 @@ object Form1: TForm1
     BorderSpacing.Top = 3
     Caption = 'SSL'
     TabOrder = 17
+  end
+  object SpinEditSubID: TSpinEdit
+    AnchorSideLeft.Control = EditHost
+    AnchorSideTop.Control = EditTopic
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = EditHost
+    AnchorSideRight.Side = asrBottom
+    Left = 776
+    Height = 32
+    Top = 328
+    Width = 238
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 3
+    TabOrder = 18
+    Value = 1
   end
 end

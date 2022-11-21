@@ -5,7 +5,7 @@ unit Unit1;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
+  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls, Spin,
   SynEdit, SynEditKeyCmds, mqtt, inifiles, TypInfo, SynEditMiscClasses,
   sslsockets, opensslsockets;
 
@@ -31,6 +31,7 @@ type
     EditPort: TLabeledEdit;
     EditID: TLabeledEdit;
     EditTopic: TLabeledEdit;
+    SpinEditSubID: TSpinEdit;
     SynEdit1: TSynEdit;
     procedure ButtonConnectClick(Sender: TObject);
     procedure ButtonDisconnectClick(Sender: TObject);
@@ -45,7 +46,7 @@ type
     procedure Debug(Txt: String);
     procedure OnDisconnect(Client: TMQTTClient);
     procedure OnConnect(Client: TMQTTClient);
-    procedure OnRx(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes);
+    procedure OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; ID: UInt32);
     procedure OnVerifySSL(Clinet: TMQTTClient; Handler: TOpenSSLSocketHandler; var Allow: Boolean);
     procedure LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);
   public
@@ -81,6 +82,7 @@ begin
   FClient.OnDisconnect := @OnDisconnect;
   FClient.OnConnect := @OnConnect;
   FClient.OnVerifySSL := @OnVerifySSL;
+  FClient.OnReceive := @OnReceive;
   if FileExists('client.crt') and FileExists('client.key') then begin
     FClient.ClientCert := 'client.crt';
     FClient.ClientKey := 'client.key';
@@ -138,9 +140,13 @@ end;
 procedure TForm1.ButtonSubscribeClick(Sender: TObject);
 var
   Res: TMQTTError;
+  ID: UInt32;
 begin
   Ini.WriteString('subscribe', 'topic', EditTopic.Text);
-  Res := FClient.Subscribe(EditTopic.Text, @OnRx);
+  ID := SpinEditSubID.Value;
+  if ID > 0 then
+    SpinEditSubID.Value := ID + 1;
+  Res := FClient.Subscribe(EditTopic.Text, ID);
   if Res <> mqeNoError then
     Debug(Format('subscribe: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]))
   else begin
@@ -157,7 +163,7 @@ begin
   TopicFilter := ComboBoxSubs.Text;
   if Text <> '' then begin
     Res := FClient.Unsubscribe(TopicFilter);
-    if Res = mqeNoError then begin
+    if ComboBoxSubs.ItemIndex >= 0 then begin
       ComboBoxSubs.Items.Delete(ComboBoxSubs.ItemIndex);
       ComboBoxSubs.ItemIndex := 0;
     end
@@ -187,19 +193,19 @@ begin
   Debug('OnConnect');
 end;
 
-procedure TForm1.OnRx(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes);
+procedure TForm1.OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; ID: UInt32);
 var
   B: Byte;
   S: String;
 begin
-  Debug(Format('OnRX: %s = %s', [Topic, Message]));
+  Debug(Format('OnReceive: ID:%d, %s = %s', [ID, Topic, Message]));
   if RespTopic <> '' then
-    Debug(Format('OnRX: Response Topic: %s', [RespTopic]));
+    Debug(Format('OnReceive: Response Topic: %s', [RespTopic]));
   if Length(CorrelData) > 0 then begin
     S := '';
     for B in CorrelData do
       S += IntToHex(B, 2) + ' ';
-    Debug(Format('OnRX: Correlation Data: %s', [S]));
+    Debug(Format('OnReceive: Correlation Data: %s', [S]));
   end;
 end;
 
