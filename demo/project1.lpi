@@ -65,11 +65,11 @@
         <UnitName Value="Unit1"/>
       </Unit>
       <Unit>
-        <Filename Value="mqtt.pas"/>
+        <Filename Value="../mqtt/mqtt.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
-        <Filename Value="mqttinternal.pas"/>
+        <Filename Value="../mqtt/mqttinternal.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit>
     </Units>
