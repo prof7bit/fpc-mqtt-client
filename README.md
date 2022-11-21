@@ -8,9 +8,7 @@ This component does also not rely on the LCL, it comes with no installable IDE p
 
 There is an example in the demo folder which is mainly used for testing and experimenting during development, but it also serves as an example.
 
-The client should implement just enough of the MQTT5 protocol to be able to connect to an MQTT5 server, subscribe and publish. I am using the official OASIS MQTT 5.0 document to implement the protocol (the chapter annotations in the source code refer to this document) and test against my Mosquitto server that is part of my Home Assistant installation. The latter is also the main motivation for this client to come into existence in the first place.
-
-Currently, it implements only user/password authentication and no SSL because that happens to be the default configuration of my Home Assistant MQTT broker. Since it is built on top of SSockets it should be possible to plug in SSL support later quite easily.
+The client should implement just enough of the MQTT5 protocol to be able to connect to an MQTT5 server, subscribe and publish. I am using the official OASIS MQTT 5.0 document to implement the protocol (the chapter annotations in the source code refer to this document) and test against my Mosquitto server that is part of my Home Assistant installation and also against the official Mosquitto test server. The Home Assistant MQTT Broker is also the main motivation for this client to come into existence in the first place.
 
 ## Work in Progress
 
