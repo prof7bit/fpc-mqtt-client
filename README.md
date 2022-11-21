@@ -20,6 +20,7 @@ If you are interested in this, then you should click the "watch" button in GitHu
 * auth with username/password
 * auth with cert + key
 * subscribe
+* subscription ID
 * unsubscribe
 * publish
 * retain
