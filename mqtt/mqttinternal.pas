@@ -591,8 +591,10 @@ begin
 
     // begin props                            //                  (Ch. 3.8.2.1)
     Props := TMemoryStream.Create;
-    Props.WriteByte(11);                      // subcription ID   (Ch. 3.8.2.1.2)
-    Props.WriteVarInt(SubsID);
+    if SubsID > 0 then begin
+      Props.WriteByte(11);                    // subcription ID   (Ch. 3.8.2.1.2)
+      Props.WriteVarInt(SubsID);
+    end;
     Props.Seek(0, soBeginning);
     WriteVarInt(Props.Size);                  // props length     (Ch. 3.8.2.1.1)
     CopyFrom(Props, Props.size);

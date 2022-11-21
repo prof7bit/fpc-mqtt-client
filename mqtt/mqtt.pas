@@ -135,7 +135,6 @@ type
     FLastPing: TDateTime;
     FKeepaliveTimer: TFPTimer;
     FNextPacketID: UInt16;
-    FNextSubsID: UInt64;
     FMaxQos: Byte;
     FRetainAvail: Boolean;
     procedure DebugSync;
@@ -155,7 +154,6 @@ type
     procedure Handle(P: TMQTTDisconnect);
     procedure Handle(P: TMQTTUnsubAck);
     function GetNewPacketID: UInt16;
-    function GetNewSubsID: UInt32;
     function ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
   public
@@ -386,19 +384,32 @@ var
   I: Integer;
   Data: TMQTTRXData;
   ID: Uint32;
+  Popped: Boolean = False;
 begin
   // called from the main thread event loop
   FLock.Acquire;
-  I := Length(FRXQueue) - 1;
-  if I < 0 then
+  try
+    I := Length(FRXQueue) - 1;
+    if I >= 0 then begin
+      Data := FRXQueue[I];
+      SetLength(FRXQueue, I);
+      Popped := True;
+    end;
+  finally
     FLock.Release
-  else begin
-    Data := FRXQueue[I];
-    SetLength(FRXQueue, I);
-    FLock.Release;
-    if Assigned(FOnReceive) then
-      for ID in Data.SubscriptionIDs do
-        FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, ID);
+  end;
+
+  if Popped then begin
+    if Assigned(FOnReceive) then begin
+      if Length(Data.SubscriptionIDs) = 0 then begin
+        FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, 0)
+      end
+      else begin
+        for ID in Data.SubscriptionIDs do begin
+          FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, ID);
+        end;
+      end;
+    end;
   end;
 end;
 
@@ -478,16 +489,6 @@ begin
   if Result = 0 then // IDs must be non-zero, so we skip the zero
     Result := 1;
   FNextPacketID := Result + 1;
-  FLock.Release;
-end;
-
-function TMQTTClient.GetNewSubsID: UInt32;
-begin
-  FLock.Acquire;
-  Result := FNextSubsID;
-  if Result = 0 then // IDs must be non-zero, so we skip the zero
-    Result := 1;
-  FNextSubsID := Result + 1;
   FLock.Release;
 end;
 
@@ -579,9 +580,6 @@ begin
   FLock := TCriticalSection.Create;
   FListenWake := TEventObject.Create(nil, False, False, '');
   FSocket := nil;
-  FNextSubsID := $08000000; // automatically generated IDs start here
-                            // max allowed value is 0fffffff (Ch. 3.8.2.1.2)
-                            // so we use half of that range for auto-IDs
   FListenThread := TMQTTLIstenThread.Create(Self);
   FKeepaliveTimer := TFPTimer.Create(Self);
   FKeepaliveTimer.OnTimer := @OnTimer;
@@ -635,15 +633,14 @@ end;
 
 function TMQTTClient.Subscribe(ATopicFilter: String; ASubsID: UInt32): TMQTTError;
 begin
-  // keep manually assigned IDs in the range 00000001..07ffffff
-  // because the range 08000000..0fffffff is used for auto generated IDs.
-  if ASubsID >= $08000000 then
+  if ASubsID >= $0fffffff {Ch. 3.8.2.1.2} then
     exit(mqeInvalidSubscriptionID);
 
-  // an ID of 0 means generate an automatic ID (these start from $08000000)
-  if ASubsID = 0 then
-    ASubsID := GetNewSubsID;
-
+  // if the subscription ID is 0 the it will send a packet without ID
+  // entirely. Resulting received messages without subscription ID will
+  // then also consequentky call the OnReceive handler with ID set to 0.
+  // So the app can entirely ignore all this subscription ID business by
+  // always using ID = 0 and it will work like in older protocol versions.
   FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, ASubsID);
   Result := mqeNoError;
 end;
