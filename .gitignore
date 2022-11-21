@@ -4,4 +4,7 @@
 **/*.dll
 **/*.lps
 **/*.ini
+**/*.crt
+**/*.key
+**/*.csr
 demo/project1
