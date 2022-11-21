@@ -153,6 +153,7 @@ type
     procedure Handle(P: TMQTTPublish);
     procedure Handle(P: TMQTTDisconnect);
     procedure Handle(P: TMQTTUnsubAck);
+    procedure Handle(P: TMQTTPubAck);
     function GetNewPacketID: UInt16;
     function ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
@@ -285,6 +286,7 @@ begin
               else if P is TMQTTPublish     then Client.Handle(P as TMQTTPublish)
               else if P is TMQTTDisconnect  then Client.Handle(P as TMQTTDisconnect)
               else if P is TMQTTUnsubAck    then Client.Handle(P as TMQTTUnsubAck)
+              else if P is TMQTTPubAck      then Client.Handle(P as TMQTTPubAck)
               else begin
                 Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
                 Client.Debug('RX: data %s', [P.DebugPrint(True)]);
@@ -482,6 +484,11 @@ begin
     Debug('unsuback reason code: %d', [ReasonCode]);
 end;
 
+procedure TMQTTClient.Handle(P: TMQTTPubAck);
+begin
+  Debug('puback PacketID: %d', [P.PacketID]);
+end;
+
 function TMQTTClient.GetNewPacketID: UInt16;
 begin
   FLock.Acquire;
@@ -665,7 +672,7 @@ begin
   if Retain and not FRetainAvail then // set by server in CONNACK
     exit(mqeRetainUnavail);
 
-  if QoS > 0 then
+  if QoS > 1 then
     exit(mqeNotYetImplemented); // fixme
 
   Result := mqeNoError;

@@ -6,8 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls, Spin,
-  SynEdit, SynEditKeyCmds, mqtt, inifiles, TypInfo, SynEditMiscClasses,
-  sslsockets, opensslsockets;
+  SynEdit, SynEditKeyCmds, mqtt, inifiles, TypInfo, SynEditMiscClasses, opensslsockets;
 
 type
 

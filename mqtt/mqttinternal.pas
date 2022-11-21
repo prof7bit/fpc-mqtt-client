@@ -64,9 +64,9 @@ type
     mqptAuth        = 15
   );
 
-  TStringPair = record
+  TMQTTStringPair = record
     Key: UTF8String;
-    Value: UTF8String;
+    Val: UTF8String;
   end;
 
   { TMQTTParsedPacket }
@@ -95,7 +95,7 @@ type
     ClientID: UTF8String;
     TopicAliasMax: Byte;
     ReasonString: UTF8String;
-    UserProperty: array of TStringPair;
+    UserProperty: array of TMQTTStringPair;
     WildSubsAvail: Boolean;
     SubsIdentAvail: Boolean;
     SharedSubsAvail: Boolean;
@@ -116,7 +116,7 @@ type
   TMQTTSubAck = class(TMQTTParsedPacket) // Ch. 3.9
     PacketID: UInt16;
     ReasonString: UTF8String;
-    UserProperty: array of TStringPair;
+    UserProperty: array of TMQTTStringPair;
     ReasonCodes: array of Byte;
     procedure Parse; override;
   end;
@@ -134,7 +134,7 @@ type
     TopicAlias: UInt16;
     RespTopic: UTF8String;
     CorrelData: TBytes;
-    UserProperty: array of TStringPair;
+    UserProperty: array of TMQTTStringPair;
     SubscriptionID: array of UInt32;
     ContentType: UTF8String;
     Message: String;
@@ -147,7 +147,7 @@ type
     ReasonCode: Byte;
     ExpiryInterval: UInt32;
     ReasonString: UTF8String;
-    UserProperty: array of TStringPair;
+    UserProperty: array of TMQTTStringPair;
     ServerReference: UTF8String;
     procedure Parse; override;
   end;
@@ -157,8 +157,18 @@ type
   TMQTTUnsubAck = class(TMQTTParsedPacket)
     PacketID: UInt16;
     ReasonString: UTF8String;
-    UserProperty: array of TStringPair;
+    UserProperty: array of TMQTTStringPair;
     ReasonCodes: array of Byte;
+    procedure Parse; override;
+  end;
+
+  { TMQTTPubAck }
+
+  TMQTTPubAck = class(TMQTTParsedPacket)
+    PacketID: Uint16;
+    ReasonCode: Byte;
+    ReasonString: UTF8String;
+    UserProperty: array of TMQTTStringPair;
     procedure Parse; override;
   end;
 
@@ -182,11 +192,61 @@ type
     function ReadInt32Big: UInt32;
     function ReadMQTTString: UTF8String;
     function ReadMQTTBin: TBytes;
+    function ReadMQTTStringPair: TMQTTStringPair;
     function ReadMQTTPacket: TMQTTParsedPacket;
   end;
 
 
 implementation
+
+{ TMQTTPubAck }
+
+procedure TMQTTPubAck.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+begin
+  with Remaining do begin
+    PacketID := ReadInt16Big;                       // Ch. 3.4.2
+
+    // Attention! Chapter 3.4.2.1 states that if remaining length = 2
+    // then there will be no reason code amd 0 is assumed instead.
+    // Consequently there also won't be a property section and not
+    // even a property length, because all bytes are already consumed.
+    if Remaining.Size = 2 then
+      ReasonCode := 0
+
+    else begin
+      ReasonCode := ReadByte;                       // Ch. 3.4.2.1
+
+      // Again, according to Chapter 3.4.2.2.1 another special condition:
+      // if remaining legnth is less than 4 there won't be a property
+      // length field and 0 is assumed.
+      if Remaining.Size < 4 then
+        PropLen := 0
+      else
+        PropLen := ReadVarInt;                      // Ch. 3.4.2.2.1
+
+      // begin properties                           // Ch. 3.4.2.2
+      PropLen := ReadVarInt;                        // Ch. 3.4.2.2.1
+      PropEnd := Position + PropLen;
+      while Position < PropEnd do begin
+        Prop := ReadByte;
+        case Prop of
+          31: ReasonString := ReadMQTTString;       // Ch. 3.4.2.2.2
+          38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.4.2.2.3
+        else
+          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBACK packet', [Prop]));
+        end
+      end;
+      // end properties
+
+    end;
+
+    // no payload                                   // Ch. 3.4.3
+  end;
+end;
 
 { TMQTTUnsubAck }
 
@@ -195,7 +255,6 @@ var
   PropLen: UInt32;
   PropEnd: UInt32;
   Prop: Byte;
-  SP: TStringPair;
 begin
   with Remaining do begin
     PacketID := ReadInt16Big;                     // Ch. 3.11.2
@@ -207,13 +266,9 @@ begin
       Prop := ReadByte;
       case Prop of
         31: ReasonString := ReadMQTTString;       // Ch. 3.11.2.1.2
-        38: begin                                 // Ch. 3.11.2.1.3
-          SP.Key := ReadMQTTString;
-          SP.Value := ReadMQTTString;
-          UserProperty += [SP];
-        end
+        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.11.2.1.3
       else
-        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in UNSUBACK package', [Prop]));
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in UNSUBACK packet', [Prop]));
       end;
     end;
     // end properties
@@ -233,19 +288,26 @@ var
   PropLen: UInt32;
   PropEnd: UInt32;
   Prop: Byte;
-  SP: TStringPair;
 begin
   with Remaining do begin
-    ReasonCode := ReadByte;                     // Ch. 3.14.2.1
+    // Reason code is omitted and assumed zero if remaining length
+    // is less than 1 (Ch. 3.14.2.1). At this point we stop parsing,
+    // there is no data anymore.
+    If Remaining.Size < 1 then begin
+      ReasonCode := 0;
+      exit;
+    end
+    else
+      ReasonCode := ReadByte;                       // Ch. 3.14.2.1
 
     // begin properties
 
-    // Attention! Property Lenth is omitted entirely if it is zero!
-    // This means if remaining length is less than 2 we MUST NOT read
-    // property length and instead assume zero! This is a special
-    // behavior that happens only in DISCONNET packages!
-    if Remaining.Size < 2 then
-      PropLen := 0
+    // Property Lenth is omitted and assumed zero if remaining length
+    // is less than 2 (Ch. 3.14.2.2.1). At this point we stop parsing,
+    // there is no data anymore.
+    if Remaining.Size < 2 then begin
+      exit;
+    end
     else
       PropLen := ReadVarInt;                      // Ch. 3.14.2.2.1
 
@@ -253,16 +315,12 @@ begin
     while Position < PropEnd do begin
       Prop := ReadByte;
       case Prop of
-        17: ExpiryInterval := ReadInt32Big;     // Ch. 3.14.2.2.2
-        31: ReasonString := ReadMQTTString;     // Ch. 3.14.2.2.3
-        38: begin                               // Ch. 3.14.2.2.4
-          SP.Key := ReadMQTTString;
-          SP.Value := ReadMQTTString;
-          UserProperty += [SP];
-        end;
-        28: ServerReference := ReadMQTTString;  // Ch. 3.14.2.5
+        17: ExpiryInterval := ReadInt32Big;       // Ch. 3.14.2.2.2
+        31: ReasonString := ReadMQTTString;       // Ch. 3.14.2.2.3
+        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.14.2.2.4
+        28: ServerReference := ReadMQTTString;    // Ch. 3.14.2.5
       else
-        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in DISCONNECT package', [Prop]));
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in DISCONNECT packet', [Prop]));
       end
     end;
     // end properties
@@ -278,7 +336,6 @@ var
   PropLen: UInt32;
   PropEnd: UInt32;
   Prop: Byte;
-  SP: TStringPair;
 begin
   Retain := Boolean(PacketFlags and %0001);
   QoS := (PacketFlags and %0110) shr 1;
@@ -299,15 +356,11 @@ begin
         35: TopicAlias := ReadInt16Big;           // Ch. 3.3.2.3.4
         08: RespTopic := ReadMQTTString;          // Ch. 3.3.2.3.5
         09: CorrelData := ReadMQTTBin;            // Ch. 3.3.2.3.6
-        38: begin                                 // Ch. 3.3.2.3.7
-          SP.Key := ReadMQTTString;
-          SP.Value := ReadMQTTString;
-          UserProperty += [SP];
-        end;
+        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.3.2.3.7
         11: SubscriptionID += [ReadVarInt];       // Ch. 3.3.2.3.8
         03: ContentType := ReadMQTTString;        // Ch. 3.3.2.3.9
       else
-        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBLISH package', [Prop]));
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBLISH packet', [Prop]));
       end;
     end;
     // end properties
@@ -326,7 +379,6 @@ var
   PropLen: UInt32;
   PropEnd: UInt32;
   Prop: Byte;
-  SP: TStringPair;
 begin
   with Remaining do begin
     PacketID := ReadInt16Big;                     // Ch. 3.9.2
@@ -338,13 +390,9 @@ begin
       Prop := ReadByte;
       case Prop of
         31: ReasonString := ReadMQTTString;       // Ch. 3.9.2.1.2
-        38: begin                                 // Ch. 3.9.2.1.3
-          SP.Key := ReadMQTTString;
-          SP.Value := ReadMQTTString;
-          UserProperty += [SP];
-        end;
+        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.9.2.1.3
         else
-          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in SUBACK package', [Prop]));
+          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in SUBACK packet', [Prop]));
       end;
     end;
     // end properties
@@ -364,7 +412,6 @@ var
   PropLen: UInt32;
   PropEnd: UInt32;
   Prop: Byte;
-  SP: TStringPair;
 begin
   // Ch. 3.2
   with Remaining do begin
@@ -393,11 +440,7 @@ begin
         18: ClientID := ReadMQTTString;            // Ch. 3.2.2.3.7
         34: TopicAliasMax := ReadInt16Big;         // Ch. 3.2.2.3.8
         31: ReasonString := ReadMQTTString;        // Ch. 3.2.2.3.9
-        38: begin                                  // Ch. 3.2.2.3.10
-          SP.Key := ReadMQTTString;
-          SP.Value := ReadMQTTString;
-          UserProperty += [SP];
-        end;
+        38: UserProperty += [ReadMQTTStringPair];  // Ch. 3.2.2.3.10
         40: WildSubsAvail := Boolean(ReadByte);    // Ch. 3.2.2.3.11
         41: SubsIdentAvail := Boolean(ReadByte);   // Ch. 3.2.2.3.12
         42: SharedSubsAvail :=  Boolean(ReadByte); // Ch. 3.2.2.3.13
@@ -407,7 +450,7 @@ begin
         21: AuthMeth := ReadMQTTString;            // Ch. 3.2.2.3.17
         22: AuthData := ReadMQTTBin;               // Ch. 3.2.2.3.18
       else
-        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in CONNACK package', [Prop]));
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in CONNACK packet', [Prop]));
       end;
     end;
     // end properties
@@ -724,6 +767,7 @@ var
   L: UInt16;
 begin
   // Ch. 1.5.4
+  Result := '';
   L := ReadInt16Big;
   SetLength(Result, L);
   ReadBuffer(Result[1], L); // traditionally strings have 1-based indices in Pascal
@@ -738,6 +782,12 @@ begin
   L := ReadInt16Big;
   SetLength(Result, L);
   ReadBuffer(Result[0], L);
+end;
+
+function TMQTTStream.ReadMQTTStringPair: TMQTTStringPair;
+begin
+  Result.Key := ReadMQTTString;
+  Result.Val := ReadMQTTString;
 end;
 
 function TMQTTStream.ReadMQTTPacket: TMQTTParsedPacket;
@@ -765,6 +815,7 @@ begin
     mqptPublish:    Result := TMQTTPublish.Create(Typ, Flags, Remaining);
     mqptDisconnect: Result := TMQTTDisconnect.Create(Typ, Flags, Remaining);
     mqptUnsubAck:   Result := TMQTTUnsubAck.Create(Typ, Flags, Remaining);
+    mqptPubAck:     Result := TMQTTPubAck.Create(Typ, Flags, Remaining);
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;
