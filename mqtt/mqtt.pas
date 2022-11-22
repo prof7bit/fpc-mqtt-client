@@ -474,6 +474,10 @@ begin
   UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');
   Debug('publish: using alias: %s, QoS: %d, topic: %s, message: %s',
    [BoolToStr(UsingAlias, 'yes', 'no'), P.QoS, Topic, P.Message]);
+  if P.QoS = 1 then begin
+    Debug('sending puback');
+    FSocket.WriteMQTTPubAck(P.PacketID, 0);
+  end;
   PushOnRX(Topic, P.Message, P.RespTopic, P.CorrelData, P.SubscriptionID);
 end;
 

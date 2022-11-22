@@ -186,6 +186,7 @@ type
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
     procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
     procedure WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
+    procedure WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
 
     function ReadVarInt: UInt32;
     function ReadInt16Big: UInt16;
@@ -657,7 +658,7 @@ begin
     // end props
 
     // begin payload
-    SubsOpt := %00000000;
+    SubsOpt := %00000001;                     // max QoS = 1
     WriteMQTTString(Topic);                   //                  (Ch. 3.8.3)
     WriteByte(SubsOpt);                       // subscr. opt      (Ch. 3.8.3.1)
     // end payload
@@ -734,6 +735,23 @@ begin
 
   // write an MQTT packet with fixed header and remaining data
   WriteMQTTPacket(mqptUnsubscribe, %0010, Remaining);
+  Remaining.Free;
+end;
+
+procedure TMQTTStream.WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
+var
+  Remaining: TMemoryStream;
+begin
+  // Ch. 3.4
+  Remaining := TMemoryStream.Create;
+  with Remaining do begin
+    WriteInt16Big(PacketID);        // Ch. 3.4.2
+    WriteByte(ReasonCode);          // Ch, 3.4.2, 3.4.2.1
+    WriteVarInt(0);                 // Ch. 3.4.2 (prop len)
+    // no properties
+    // no payload
+  end;
+  WriteMQTTPacket(mqptPubAck, %0000, Remaining);
   Remaining.Free;
 end;
 
