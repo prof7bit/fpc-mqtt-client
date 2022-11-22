@@ -95,6 +95,16 @@ type
     SubscriptionIDs: TSubscriptionIDs;
   end;
 
+  TMQTTQueuedMessage = record
+    PacketID: UInt16;
+    Topic: String;
+    Message: String;
+    ResponseTopic: String;
+    CorrelData: TBytes;
+    QoS: Byte;
+    Retain: Boolean;
+  end;
+
   { TMQTTSocket }
 
   TMQTTSocket = class(TInetSocket)
@@ -130,6 +140,7 @@ type
     FClientKey: String;
     FRXQueue: array of TMQTTRXData;
     FTopicAliases: array of TTopicAlias;
+    FQueuedMessages: array of TMQTTQueuedMessage;
     FDebugTxt: String;
     FLock: TCriticalSection;
     FListenWake: TEvent;
@@ -160,6 +171,8 @@ type
     function GetNewPacketID: UInt16;
     function ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
+    procedure QueuedMsgAdd(Msg: TMQTTQueuedMessage);
+    procedure QueuedMsgRemove(PacketID: UInt16);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -291,8 +304,8 @@ begin
               else if P is TMQTTUnsubAck    then Client.Handle(P as TMQTTUnsubAck)
               else if P is TMQTTPubAck      then Client.Handle(P as TMQTTPubAck)
               else begin
-                Client.Debug('RX: unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
-                Client.Debug('RX: data %s', [P.DebugPrint(True)]);
+                Client.Debug('<- unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
+                Client.Debug('   data %s', [P.DebugPrint(True)]);
               end;
               P.Free;
             end;
@@ -422,14 +435,21 @@ procedure TMQTTClient.OnTimer(Sender: TObject);
 begin
   if Connected then begin
     if Now - FLastPing > FKeepalive * SECOND then begin
-      Debug('ping');
-      FSocket.WriteMQTTPingReq;
-      FLastPing := Now;
+      Debug('-> pingreq');
+      FLock.Acquire;
+      try
+        FSocket.WriteMQTTPingReq;
+        FLastPing := Now;
+      finally
+        FLock.Release;
+      end;
     end;
   end;
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTConnAck);
+var
+  QM: TMQTTQueuedMessage;
 begin
   if (P.ServerKeepalive > 0) and (P.ServerKeepalive < FKeepalive) then
     FKeepalive := P.ServerKeepalive;
@@ -437,18 +457,30 @@ begin
     FSessionExpiry := P.SessionExpiry;
   FMaxQos := P.MaxQoS;
   FRetainAvail := P.RetainAvail;
-  Debug('keepalive is %d seconds', [FKeepalive]);
-  Debug('session expiry is %d seconds', [FSessionExpiry]);
-  Debug('topic alias max is %d', [P.TopicAliasMax]);
-  Debug('max QoS is %d', [FMaxQoS]);
-  Debug('retain available: %s', [BoolToStr(FRetainAvail, 'yes', 'no')]);
+  Debug('<- connack');
+  Debug('   keepalive is %d seconds', [FKeepalive]);
+  Debug('   session expiry is %d seconds', [FSessionExpiry]);
+  Debug('   topic alias max is %d', [P.TopicAliasMax]);
+  Debug('   max QoS is %d', [FMaxQoS]);
+  Debug('   retain available: %s', [BoolToStr(FRetainAvail, 'yes', 'no')]);
   Debug('connected.');
+  if P.ReasonCode = 0 then begin
+    FLock.Acquire;
+    try
+      for QM in FQueuedMessages do begin
+        Debug('-> publish (unacked), PacketID %d', [QM.PacketID]);
+        FSocket.WriteMQTTPublish(QM.Topic, QM.Message, QM.ResponseTopic, QM.CorrelData, QM.PacketID, QM.QoS, QM.Retain);
+      end;
+    finally
+      FLock.Release;
+    end;
+  end;
   PushOnConnect;
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPingResp);
 begin
-  Debug('pong');
+  Debug('<- pingresp');
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTSubAck);
@@ -456,13 +488,14 @@ var
   B: Byte;
   S: String;
 begin
-  Debug('suback PacketID: %d', [P.PacketID]);
-  Debug('suback ReasonString: ' + P.ReasonString);
-  S := 'suback ReasonCodes: ';
-  for B in P.ReasonCodes do begin
-    S += IntToHex(B, 2) + ' ';
+  Debug('<- suback PacketID: %d', [P.PacketID]);
+  if Assigned(FOnDebug) then begin
+    S := '   suback ReasonCode(s): ';
+    for B in P.ReasonCodes do begin
+      S += IntToHex(B, 2) + ' ';
+    end;
+    Debug(S)
   end;
-  Debug(S)
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPublish);
@@ -472,18 +505,23 @@ var
 begin
   Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
   UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');
-  Debug('publish: using alias: %s, QoS: %d, topic: %s, message: %s',
-   [BoolToStr(UsingAlias, 'yes', 'no'), P.QoS, Topic, P.Message]);
+  Debug('<- publish, PacketID: %d, alias: %s, QoS: %d, topic: %s, message: %s',
+   [P.PacketID, BoolToStr(UsingAlias, 'yes', 'no'), P.QoS, Topic, P.Message]);
   if P.QoS = 1 then begin
-    Debug('sending puback');
-    FSocket.WriteMQTTPubAck(P.PacketID, 0);
+    Debug('-> puback, PacketID %d', [P.PacketID]);
+    FLock.Acquire;
+    try
+      FSocket.WriteMQTTPubAck(P.PacketID, 0);
+    finally
+      FLock.Release;
+    end;
   end;
   PushOnRX(Topic, P.Message, P.RespTopic, P.CorrelData, P.SubscriptionID);
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTDisconnect);
 begin
-  Debug('disconnect: reason %d %s', [P.ReasonCode, P.ReasonString]);
+  Debug('<- disconnect, ReasonCode %d %s', [P.ReasonCode, P.ReasonString]);
   Disconect;
 end;
 
@@ -492,12 +530,13 @@ var
   ReasonCode: Byte;
 begin
   for ReasonCode in P.ReasonCodes do
-    Debug('unsuback reason code: %d', [ReasonCode]);
+    Debug('<- unsuback, ReasonCode %d', [ReasonCode]);
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubAck);
 begin
-  Debug('puback PacketID: %d, ReasonCode: %d', [P.PacketID, P.ReasonCode]);
+  Debug('<- puback, PacketID %d, ReasonCode %d', [P.PacketID, P.ReasonCode]);
+  QueuedMsgRemove(P.PacketID);
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;
@@ -591,6 +630,45 @@ begin
           exit(A.Topic);
 end;
 
+procedure TMQTTClient.QueuedMsgAdd(Msg: TMQTTQueuedMessage);
+var
+  L: Integer;
+begin
+  FLock.Acquire;
+  try
+    FQueuedMessages += [Msg];
+    L := Length(FQueuedMessages);
+  finally
+    FLock.Release;
+  end;
+  Debug('unacked queue + 1, PacketID %d, Length %d', [Msg.PacketID, L]);
+end;
+
+procedure TMQTTClient.QueuedMsgRemove(PacketID: UInt16);
+var
+  I: Integer;
+  L: Integer;
+  Found: Boolean = False;
+begin
+  FLock.Acquire;
+  try
+    for I := 0 to Length(FQueuedMessages) - 1 do begin
+      if FQueuedMessages[I].PacketID = PacketID then begin
+        Found := True;
+        Delete(FQueuedMessages, I, 1);
+        break;
+      end;
+    end;
+    L := Length(FQueuedMessages);
+  finally
+    FLock.Release;
+  end;
+  if Found then
+    Debug('unacked queue - 1, PacketID %d, Length %d', [PacketID, L])
+  else
+    Debug('unacked queue PacketID %d not found, Length %d', [PacketID, L])
+end;
+
 constructor TMQTTClient.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -628,8 +706,14 @@ begin
   if Result = mqeNoError then begin
     FKeepalive := MQTTDefaultKeepalive;
     FSessionExpiry := MQTTDefaultSessionExpiry;
-    FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive, CleanStart, FSessionExpiry);
-    FLastPing := Now;
+    FLock.Acquire;
+    try
+      Debug('-> connect');
+      FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive, CleanStart, FSessionExpiry);
+      FLastPing := Now;
+    finally
+      FLock.Release;
+    end;
   end;
 end;
 
@@ -638,6 +722,7 @@ begin
   if not Connected then
     exit(mqeNotConnected);
 
+  Debug('disconnect');
   FClosing := True;
   FSocket.Shutdown;
   FSocket.Free;
@@ -652,6 +737,7 @@ end;
 
 function TMQTTClient.Subscribe(ATopicFilter: String; ASubsID: UInt32): TMQTTError;
 begin
+  Result := mqeNoError;
   if ASubsID >= $0fffffff {Ch. 3.8.2.1.2} then
     exit(mqeInvalidSubscriptionID);
 
@@ -660,21 +746,37 @@ begin
   // then also consequentky call the OnReceive handler with ID set to 0.
   // So the app can entirely ignore all this subscription ID business by
   // always using ID = 0 and it will work like in older protocol versions.
-  FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, ASubsID);
-  Result := mqeNoError;
+  FLock.Acquire;
+  try
+    Debug('-> subscribe, topic %s, SubsID %d', [ATopicFilter, ASubsID]);
+    FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, ASubsID);
+  finally
+    FLock.Release;
+  end;
 end;
 
 function TMQTTClient.Unsubscribe(ATopicFilter: String): TMQTTError;
 begin
   Result := mqeNoError;
-  if ATopicFilter <> '' then
-    FSocket.WriteMQTTUnsubscribe(ATopicFilter, GetNewPacketID)
+  if ATopicFilter <> '' then begin
+    FLock.Acquire;
+    try
+      Debug('-> unsubscribe, topic %s', [ATopicFilter]);
+      FSocket.WriteMQTTUnsubscribe(ATopicFilter, GetNewPacketID);
+    finally
+      FLock.Release;
+    end;
+  end
   else
     Exit(mqeInvalidTopicFilter);
 end;
 
 function TMQTTClient.Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
+var
+  PacketID: UInt16;
+  M: TMQTTQueuedMessage;
 begin
+  Result := mqeNoError;
   if not Connected then
     exit(mqeNotConnected);
 
@@ -687,8 +789,19 @@ begin
   if QoS > 1 then
     exit(mqeNotYetImplemented); // fixme
 
-  Result := mqeNoError;
-  FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, GetNewPacketID, QoS, Retain);
+  PacketID := GetNewPacketID;
+  if QoS > 0 then begin
+    M.PacketID := PacketID;
+    M.Topic := Topic;
+    M.Message := Message;
+    M.ResponseTopic := ResponseTopic;
+    M.CorrelData := CorrelData;
+    M.QoS := QoS;
+    M.Retain := Retain;
+    QueuedMsgAdd(M);
+  end;
+  Debug('-> publish, PacketID %d', [PacketID]);
+  FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, PacketID, QoS, Retain);
 end;
 
 function TMQTTClient.Connected: Boolean;

@@ -26,10 +26,10 @@ If you are interested in this, then you should click the "watch" button in GitHu
 * retain
 * response topic
 * correlation data
+* QoS 1
 
 ## Still missing (ordered by priority)
 
-* QoS 1
 * QoS 2
 * will
 * pluggable alternative auth methods
