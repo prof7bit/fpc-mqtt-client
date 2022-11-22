@@ -469,7 +469,7 @@ begin
     try
       for QM in FQueuedMessages do begin
         Debug('-> publish (unacked), PacketID %d', [QM.PacketID]);
-        FSocket.WriteMQTTPublish(QM.Topic, QM.Message, QM.ResponseTopic, QM.CorrelData, QM.PacketID, QM.QoS, QM.Retain);
+        FSocket.WriteMQTTPublish(QM.Topic, QM.Message, QM.ResponseTopic, QM.CorrelData, QM.PacketID, QM.QoS, QM.Retain, True);
       end;
     finally
       FLock.Release;
@@ -807,7 +807,7 @@ begin
     QueuedMsgAdd(M);
   end;
   Debug('-> publish, PacketID %d', [PacketID]);
-  FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, PacketID, QoS, Retain);
+  FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, PacketID, QoS, Retain, False);
 end;
 
 function TMQTTClient.Connected: Boolean;

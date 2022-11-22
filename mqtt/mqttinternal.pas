@@ -184,7 +184,7 @@ type
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32);
     procedure WriteMQTTPingReq;
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
-    procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
+    procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean);
     procedure WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
     procedure WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
 
@@ -669,7 +669,7 @@ begin
   Remaining.Free;
 end;
 
-procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
+procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean);
 var
   Remaining: TMemoryStream;
   Flags: Byte = 0;
@@ -679,6 +679,8 @@ begin
   Flags := Flags or ((QoS and %11) << 1);
   if Retain then
     Flags := Flags or 1;
+  if Dup then
+    Flags := Flags or (1 shl 3);
 
   Remaining := TMemoryStream.Create;
   with Remaining do begin
