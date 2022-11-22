@@ -554,17 +554,17 @@ end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubRec);
 begin
-
+  Debug('<- pubrec, PacketID %d', [P.PacketID]);
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubRel);
 begin
-
+  Debug('<- pubrel, PacketID %d', [P.PacketID]);
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubComp);
 begin
-
+  Debug('<- pubcomp, PacketID %d', [P.PacketID]);
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;
@@ -819,9 +819,6 @@ begin
 
   if Retain and not FRetainAvail then // set by server in CONNACK
     exit(mqeRetainUnavail);
-
-  if QoS > 1 then
-    exit(mqeNotYetImplemented); // fixme
 
   PacketID := GetNewPacketID;
   if QoS > 0 then begin

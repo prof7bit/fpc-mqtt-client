@@ -131,7 +131,7 @@ begin
   Ini.WriteString('publish', 'resptopic', EditRespTopic.Text);
   Ini.WriteString('publish', 'correldata', EditCorrelData.Text);
   Res := FClient.Publish(EditPubTopic.Text, EditPubMessage.Text, EditRespTopic.Text,
-    TBytes(EditCorrelData.Text), 1, False);
+    TBytes(EditCorrelData.Text), 2, False);
   if Res <> mqeNoError then
     Debug(Format('publish: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
 end;
