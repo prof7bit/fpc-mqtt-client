@@ -105,6 +105,26 @@ type
     Retain: Boolean;
   end;
 
+  TMQTTQueuedPubRel = record
+    PacketID: uint16;
+  end;
+
+  { TMQTTlist }
+
+  generic TMQTTlist<T> = class
+    Items: array of T;
+    Lock: TCriticalSection;
+    constructor Create;
+    destructor Destroy; override;
+    function Add(Item: T): Integer;
+    function Count: Integer;
+    function Get(I: Integer): T;
+    function Remove(PacketID: UInt16): Boolean;
+  end;
+
+  TMQTTQueuedPublishList = specialize TMQTTlist<TMQTTQueuedMessage>;
+  TMQTTQueuedPubRelList = specialize TMQTTlist<TMQTTQueuedPubRel>;
+
   { TMQTTSocket }
 
   TMQTTSocket = class(TInetSocket)
@@ -140,7 +160,8 @@ type
     FClientKey: String;
     FRXQueue: array of TMQTTRXData;
     FTopicAliases: array of TTopicAlias;
-    FQueuedMessages: array of TMQTTQueuedMessage;
+    FQueuedMessages: TMQTTQueuedPublishList;
+    FQueuedPubRel: TMQTTQueuedPubRelList;
     FDebugTxt: String;
     FLock: TCriticalSection;
     FListenWake: TEvent;
@@ -174,8 +195,10 @@ type
     function GetNewPacketID: UInt16;
     function ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
-    procedure QueuedMsgAdd(Msg: TMQTTQueuedMessage);
-    procedure QueuedMsgRemove(PacketID: UInt16);
+    procedure QueuedPublishAdd(Msg: TMQTTQueuedMessage);
+    procedure QueuedPublishRemove(PacketID: UInt16);
+    procedure QueuedPubRelAdd(PubRel: TMQTTQueuedPubRel);
+    procedure QueuedPubRelRemove(PacketID: UInt16);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -200,6 +223,7 @@ implementation
 {$ifdef unix}
 uses
   BaseUnix;
+
 {$else}
 uses
   WinSock2;
@@ -224,6 +248,69 @@ begin
   Result := LongInt(FD_ISSET(fdno, nset));
 end;
 {$endif}
+
+{ TMQTTlist }
+
+constructor TMQTTlist.Create;
+begin
+  Lock := TCriticalSection.Create;
+end;
+
+destructor TMQTTlist.Destroy;
+begin
+  Lock.Free;
+  inherited Destroy;
+end;
+
+function TMQTTlist.Add(Item: T): Integer;
+begin
+  Lock.Acquire;
+  try
+    Items += [Item];
+    Result := Length(Items);
+  finally
+    Lock.Release;
+  end;
+end;
+
+function TMQTTlist.Count: Integer;
+begin
+  Lock.Acquire;
+  try
+    Result := Length(Items);
+  finally
+    Lock.Release;
+  end;
+end;
+
+function TMQTTlist.Get(I: Integer): T;
+begin
+  Lock.Acquire;
+  try
+    Result := Items[I];
+  finally
+    Lock.Release;
+  end;
+end;
+
+function TMQTTlist.Remove(PacketID: UInt16): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  Lock.Acquire;
+  try
+    for I := 0 to Length(Items) - 1 do begin
+      if Items[I].PacketID = PacketID then begin
+        Delete(Items, I, 1);
+        Result := True;
+        break;
+      end;
+    end;
+  finally
+    Lock.Release;
+  end;
+end;
 
 { TMQTTSocket }
 
@@ -460,6 +547,7 @@ end;
 
 procedure TMQTTClient.Handle(P: TMQTTConnAck);
 var
+  I: Integer;
   QM: TMQTTQueuedMessage;
 begin
   if (P.ServerKeepalive > 0) and (P.ServerKeepalive < FKeepalive) then
@@ -478,7 +566,8 @@ begin
   if P.ReasonCode = 0 then begin
     FLock.Acquire;
     try
-      for QM in FQueuedMessages do begin
+      for I := 0 to FQueuedMessages.Count - 1 do begin
+        QM := FQueuedMessages.Get(I);
         Debug('-> publish (unacked), PacketID %d', [QM.PacketID]);
         FSocket.WriteMQTTPublish(QM.Topic, QM.Message, QM.ResponseTopic, QM.CorrelData, QM.PacketID, QM.QoS, QM.Retain, True);
       end;
@@ -549,12 +638,24 @@ end;
 procedure TMQTTClient.Handle(P: TMQTTPubAck);
 begin
   Debug('<- puback, PacketID %d, ReasonCode %d', [P.PacketID, P.ReasonCode]);
-  QueuedMsgRemove(P.PacketID);
+  QueuedPublishRemove(P.PacketID);
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubRec);
+var
+  PR: TMQTTQueuedPubRel;
 begin
   Debug('<- pubrec, PacketID %d', [P.PacketID]);
+  PR.PacketID := P.PacketID;
+  QueuedPubRelAdd(PR);
+  FLock.Acquire;
+  try
+    Debug('-> pubrel, PacketID %d', [P.PacketID]);
+    FSocket.WriteMQTTPubRel(P.PacketID, 0);
+    QueuedPublishRemove(P.PacketID);
+  finally
+    FLock.Release;
+  end;
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubRel);
@@ -565,6 +666,7 @@ end;
 procedure TMQTTClient.Handle(P: TMQTTPubComp);
 begin
   Debug('<- pubcomp, PacketID %d', [P.PacketID]);
+  QueuedPubRelRemove(P.PacketID);
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;
@@ -658,49 +760,54 @@ begin
           exit(A.Topic);
 end;
 
-procedure TMQTTClient.QueuedMsgAdd(Msg: TMQTTQueuedMessage);
+procedure TMQTTClient.QueuedPublishAdd(Msg: TMQTTQueuedMessage);
 var
   L: Integer;
 begin
-  FLock.Acquire;
-  try
-    FQueuedMessages += [Msg];
-    L := Length(FQueuedMessages);
-  finally
-    FLock.Release;
-  end;
-  Debug('unacked queue + 1, PacketID %d, Length %d', [Msg.PacketID, L]);
+  L := FQueuedMessages.Add(Msg);
+  Debug('unacked publish + 1, PacketID %d, Length %d', [Msg.PacketID, L]);
 end;
 
-procedure TMQTTClient.QueuedMsgRemove(PacketID: UInt16);
+procedure TMQTTClient.QueuedPublishRemove(PacketID: UInt16);
 var
-  I: Integer;
+  L: Integer;
+  Found: Boolean;
+begin
+  Found := FQueuedMessages.Remove(PacketID);
+  L := FQueuedMessages.Count;
+  if Found then
+    Debug('unacked publish - 1, PacketID %d, Length %d', [PacketID, L])
+  else
+    Debug('unacked publish PacketID %d not found, Length %d', [PacketID, L])
+end;
+
+procedure TMQTTClient.QueuedPubRelAdd(PubRel: TMQTTQueuedPubRel);
+var
+  L: Integer;
+begin
+  L := FQueuedPubRel.Add(PubRel);
+  Debug('unacked pubrel + 1, PacketID %d, Length %d', [PubRel.PacketID, L]);
+end;
+
+procedure TMQTTClient.QueuedPubRelRemove(PacketID: UInt16);
+var
   L: Integer;
   Found: Boolean = False;
 begin
-  FLock.Acquire;
-  try
-    for I := 0 to Length(FQueuedMessages) - 1 do begin
-      if FQueuedMessages[I].PacketID = PacketID then begin
-        Found := True;
-        Delete(FQueuedMessages, I, 1);
-        break;
-      end;
-    end;
-    L := Length(FQueuedMessages);
-  finally
-    FLock.Release;
-  end;
+  Found := FQueuedPubRel.Remove(PacketID);
+  L := FQueuedPubRel.Count;
   if Found then
-    Debug('unacked queue - 1, PacketID %d, Length %d', [PacketID, L])
+    Debug('unacked pubrel - 1, PacketID %d, Length %d', [PacketID, L])
   else
-    Debug('unacked queue PacketID %d not found, Length %d', [PacketID, L])
+    Debug('unacked pubrel PacketID %d not found, Length %d', [PacketID, L])
 end;
 
 constructor TMQTTClient.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FMaxQos := 2;
+  FQueuedMessages := TMQTTQueuedPublishList.Create;
+  FQueuedPubRel := TMQTTQueuedPubRelList.Create;
   FLock := TCriticalSection.Create;
   FListenWake := TEventObject.Create(nil, False, False, '');
   FSocket := nil;
@@ -725,6 +832,8 @@ begin
   FListenThread.Free;
   FreeAndNil(FLock);
   FreeAndNil(FListenWake);
+  FQueuedPubRel.Free;
+  FQueuedMessages.Free;
   inherited Destroy;
 end;
 
@@ -829,7 +938,7 @@ begin
     M.CorrelData := CorrelData;
     M.QoS := QoS;
     M.Retain := Retain;
-    QueuedMsgAdd(M);
+    QueuedPublishAdd(M);
   end;
   Debug('-> publish, PacketID %d', [PacketID]);
   FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, PacketID, QoS, Retain, False);
