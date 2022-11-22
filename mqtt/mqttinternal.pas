@@ -208,8 +208,26 @@ type
     function CopyTo(Dest: TStream; Size: Int64): Int64;
   end;
 
-
 implementation
+const
+  PacketClasses: array[TMQTTPacketType] of CMQTTParsedPacket = (
+    TMQTTParsedPacket,  // reserved
+    TMQTTParsedPacket,  // connect (we don't receive these)
+    TMQTTConnAck,
+    TMQTTPublish,
+    TMQTTPubAck,
+    TMQTTPubRec,
+    TMQTTPubRel,
+    TMQTTPubComp,
+    TMQTTParsedPacket,  // subscribe (we don't revceive these)
+    TMQTTSubAck,
+    TMQTTParsedPacket,  // unsubscribe (we don't revceive these)
+    TMQTTUnsubAck,
+    TMQTTParsedPacket,  // pingreq (we don't revceive these)
+    TMQTTPingResp,
+    TMQTTDisconnect,
+    TMQTTParsedPacket   // auth (fixme, need to implement this)
+  );
 
 { TMQTTParsedPacket }
 
@@ -799,26 +817,6 @@ begin
 end;
 
 function TMQTTStream.ReadMQTTPacket: TMQTTParsedPacket;
-const
-  MsgCls: array[TMQTTPacketType] of CMQTTParsedPacket = (
-    TMQTTParsedPacket,  // reserved
-    TMQTTParsedPacket,  // connect (we don't receive these)
-    TMQTTConnAck,
-    TMQTTPublish,
-    TMQTTPubAck,
-    TMQTTPubRec,
-    TMQTTPubRel,
-    TMQTTPubComp,
-    TMQTTParsedPacket,  // subscribe (we don't revceive these)
-    TMQTTSubAck,
-    TMQTTParsedPacket,  // unsubscribe (we don't revceive these)
-    TMQTTUnsubAck,
-    TMQTTParsedPacket,  // pingreq (we don't revceive these)
-    TMQTTPingResp,
-    TMQTTDisconnect,
-    TMQTTParsedPacket   // auth (fixme, need to implement this)
-  );
-
 var
   Fixed: Byte;
   Typ: TMQTTPacketType;
@@ -838,7 +836,7 @@ begin
   if RemLen > 0 then
     Remaining.CopyFrom(Self, RemLen);
 
-  Result := MsgCls[Typ].Create(Typ, Flags, Remaining);
+  Result := PacketClasses[Typ].Create(Typ, Flags, Remaining);
 end;
 
 function TMQTTStream.CopyTo(Dest: TStream; Size: Int64): Int64;
