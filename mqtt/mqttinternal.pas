@@ -415,10 +415,10 @@ var
 begin
   // Ch. 3.2
   with Remaining do begin
-    ConnAckFlags := ReadByte;                      // Ch. 3.2.2.1
-    ReasonCode := ReadByte;                        // Ch. 3.2.2.2
+    ConnAckFlags := ReadByte;                       // Ch. 3.2.2.1
+    ReasonCode := ReadByte;                         // Ch. 3.2.2.2
     // begin properties
-    PropLen := ReadVarInt;                         // Ch. 3.2.2.3.1
+    PropLen := ReadVarInt;                          // Ch. 3.2.2.3.1
     PropEnd := Position + PropLen;
     // defaults
     RecvMax := $ffff;
@@ -432,23 +432,23 @@ begin
     while Position < PropEnd do begin
       Prop := ReadByte;
       case Prop of
-        17: SessionExpiry := ReadInt32Big;         // Ch. 3.2.2.3.2
-        33: RecvMax := ReadInt16Big;               // Ch. 3.2.2.3.3
-        36: MaxQoS := ReadByte;                    // Ch. 3.2.2.3.4
-        37: RetainAvail := Boolean(ReadByte);      // Ch. 3.2.2.3.5
-        39: MaxPackSize := ReadInt32Big;           // Ch. 3.2.2.3.6
-        18: ClientID := ReadMQTTString;            // Ch. 3.2.2.3.7
-        34: TopicAliasMax := ReadInt16Big;         // Ch. 3.2.2.3.8
-        31: ReasonString := ReadMQTTString;        // Ch. 3.2.2.3.9
-        38: UserProperty += [ReadMQTTStringPair];  // Ch. 3.2.2.3.10
-        40: WildSubsAvail := Boolean(ReadByte);    // Ch. 3.2.2.3.11
-        41: SubsIdentAvail := Boolean(ReadByte);   // Ch. 3.2.2.3.12
-        42: SharedSubsAvail :=  Boolean(ReadByte); // Ch. 3.2.2.3.13
-        19: ServerKeepalive := ReadInt16Big;       // Ch. 3.2.2.3.14
-        26: ResponseInfo := ReadMQTTString;        // Ch. 3.2.2.3.15
-        28: ServerRef := ReadMQTTString;           // Ch. 3.2.2.3.16
-        21: AuthMeth := ReadMQTTString;            // Ch. 3.2.2.3.17
-        22: AuthData := ReadMQTTBin;               // Ch. 3.2.2.3.18
+        17: SessionExpiry := ReadInt32Big;          // Ch. 3.2.2.3.2
+        33: RecvMax := ReadInt16Big;                // Ch. 3.2.2.3.3
+        36: MaxQoS := ReadByte;                     // Ch. 3.2.2.3.4
+        37: RetainAvail := Boolean(ReadByte);       // Ch. 3.2.2.3.5
+        39: MaxPackSize := ReadInt32Big;            // Ch. 3.2.2.3.6
+        18: ClientID := ReadMQTTString;             // Ch. 3.2.2.3.7
+        34: TopicAliasMax := ReadInt16Big;          // Ch. 3.2.2.3.8
+        31: ReasonString := ReadMQTTString;         // Ch. 3.2.2.3.9
+        38: UserProperty += [ReadMQTTStringPair];   // Ch. 3.2.2.3.10
+        40: WildSubsAvail := Boolean(ReadByte);     // Ch. 3.2.2.3.11
+        41: SubsIdentAvail := Boolean(ReadByte);    // Ch. 3.2.2.3.12
+        42: SharedSubsAvail :=  Boolean(ReadByte);  // Ch. 3.2.2.3.13
+        19: ServerKeepalive := ReadInt16Big;        // Ch. 3.2.2.3.14
+        26: ResponseInfo := ReadMQTTString;         // Ch. 3.2.2.3.15
+        28: ServerRef := ReadMQTTString;            // Ch. 3.2.2.3.16
+        21: AuthMeth := ReadMQTTString;             // Ch. 3.2.2.3.17
+        22: AuthData := ReadMQTTBin;                // Ch. 3.2.2.3.18
       else
         raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in CONNACK packet', [Prop]));
       end;
