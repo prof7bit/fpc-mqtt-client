@@ -87,7 +87,7 @@ type
   TMQTTConnAck = class(TMQTTParsedPacket) // Ch. 3.2
     ConnAckFlags: Byte;
     ReasonCode: Byte;
-    ExpiryInterval: UInt32;
+    SessionExpiry: UInt32;
     RecvMax: UInt16;
     MaxQoS: Byte;
     RetainAvail: Boolean;
@@ -181,7 +181,7 @@ type
     procedure WriteMQTTString(X: UTF8String);
     procedure WriteMQTTBin(X: TBytes);
     procedure WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
-    procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
+    procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32);
     procedure WriteMQTTPingReq;
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
     procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
@@ -297,7 +297,7 @@ begin
       exit;
     end
     else
-      ReasonCode := ReadByte;                       // Ch. 3.14.2.1
+      ReasonCode := ReadByte;                     // Ch. 3.14.2.1
 
     // begin properties
 
@@ -431,7 +431,7 @@ begin
     while Position < PropEnd do begin
       Prop := ReadByte;
       case Prop of
-        17: ExpiryInterval := ReadInt32Big;        // Ch. 3.2.2.3.2
+        17: SessionExpiry := ReadInt32Big;         // Ch. 3.2.2.3.2
         33: RecvMax := ReadInt16Big;               // Ch. 3.2.2.3.3
         36: MaxQoS := ReadByte;                    // Ch. 3.2.2.3.4
         37: RetainAvail := Boolean(ReadByte);      // Ch. 3.2.2.3.5
@@ -567,7 +567,7 @@ begin
     WriteVarInt(0); // a packet without data, remaining length = 0
 end;
 
-procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16);
+procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32);
 type
   TConnectFlag = (          // Ch. 3.1.2.3
     cfReserved0   = 0,
@@ -581,10 +581,12 @@ type
   );
 
 var
-  Remaining: TMemoryStream;
+  Remaining, Props: TMemoryStream;
   ConnectFlags: Set of TConnectFlag;
 begin
-  ConnectFlags := [cfCleanStart, cfUser, cfPass];
+  ConnectFlags := [cfUser, cfPass];
+  if CleanStart then
+    ConnectFlags += [cfCleanStart];
 
   // Ch. 3.1.2
   Remaining := TMemoryStream.Create;
@@ -595,9 +597,19 @@ begin
     WriteInt16Big(Keepalive);                 // keepalive        (Ch. 3.1.2.10)
 
     // begin properties                                           (Ch. 3.1.2.11)
-    WriteVarInt(3);                           // length           (Ch. 3.1.2.11.1)
-    WriteByte(34);                            // Topic Alias Max  (Ch. 3.1.2.11.5)
-    WriteInt16Big($ffff);
+    Props := TMemoryStream.Create;
+    with Props do begin
+      if SessionExpiry > 0 then begin
+        WriteByte(17);                        // Session Expiry   (Ch. 3.1.2.11.2)
+        WriteInt32Big(SessionExpiry);
+      end;
+      WriteByte(34);                          // Topic Alias Max  (Ch. 3.1.2.11.5)
+      WriteInt16Big($ffff);
+      Seek(0, soBeginning);
+    end;
+    WriteVarInt(Props.Size);                  // props length     (Ch. 3.1.2.11.1)
+    CopyFrom(Props, Props.Size);              // props data
+    Props.Free;
     // end properties
 
     // begin payload                                              (Ch. 3.1.3)
@@ -625,6 +637,7 @@ procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID
 var
   Remaining: TMemoryStream;
   Props: TMemoryStream;
+  SubsOpt: Byte;
 begin
   // Ch. 3.8
   Remaining := TMemoryStream.Create;
@@ -644,8 +657,9 @@ begin
     // end props
 
     // begin payload
+    SubsOpt := %00000000;
     WriteMQTTString(Topic);                   //                  (Ch. 3.8.3)
-    WriteByte(%00000000);                     // subs-opt         (Ch. 3.8.3.1)
+    WriteByte(SubsOpt);                       // subscr. opt      (Ch. 3.8.3.1)
     // end payload
   end;
 

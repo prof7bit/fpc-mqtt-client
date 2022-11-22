@@ -39,8 +39,10 @@ uses
   sslsockets, openssl, opensslsockets;
 
 const
-  MQTTDefaultKeepalive: UInt16 = 50; // seconds
+  MQTTDefaultKeepalive: UInt16        = 50; // seconds
+  MQTTDefaultSessionExpiry: UInt32    = 60 * 60; // seconds
 
+  // constants based on TDateTime (1 day = 1)
   HOUR = 1 / 24;
   MINUTE = HOUR / 60;
   SECOND = MINUTE / 60;
@@ -132,6 +134,7 @@ type
     FLock: TCriticalSection;
     FListenWake: TEvent;
     FKeepalive: UInt16;
+    FSessionExpiry: UInt32;
     FLastPing: TDateTime;
     FKeepaliveTimer: TFPTimer;
     FNextPacketID: UInt16;
@@ -160,7 +163,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function Connect(Host: String; Port: Word; ID, User, Pass: String; SSL: Boolean): TMQTTError;
+    function Connect(Host: String; Port: Word; ID, User, Pass: String; SSL, CleanStart: Boolean): TMQTTError;
     function Disconect: TMQTTError;
     function Subscribe(ATopicFilter: String; ASubsID: UInt32=0): TMQTTError;
     function Unsubscribe(ATopicFilter: String): TMQTTError;
@@ -428,11 +431,14 @@ end;
 
 procedure TMQTTClient.Handle(P: TMQTTConnAck);
 begin
-  if P.ServerKeepalive < FKeepalive then
+  if (P.ServerKeepalive > 0) and (P.ServerKeepalive < FKeepalive) then
     FKeepalive := P.ServerKeepalive;
+  if (P.SessionExpiry > 0) and  (P.SessionExpiry < FSessionExpiry) then
+    FSessionExpiry := P.SessionExpiry;
   FMaxQos := P.MaxQoS;
   FRetainAvail := P.RetainAvail;
   Debug('keepalive is %d seconds', [FKeepalive]);
+  Debug('session expiry is %d seconds', [FSessionExpiry]);
   Debug('topic alias max is %d', [P.TopicAliasMax]);
   Debug('max QoS is %d', [FMaxQoS]);
   Debug('retain available: %s', [BoolToStr(FRetainAvail, 'yes', 'no')]);
@@ -466,7 +472,8 @@ var
 begin
   Topic := HandleTopicAlias(P.TopicAlias, P.TopicName);
   UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');
-  Debug('publish: using alias: %s, topic: %s, message: %s', [BoolToStr(UsingAlias, 'yes', 'no'), Topic, P.Message]);
+  Debug('publish: using alias: %s, QoS: %d, topic: %s, message: %s',
+   [BoolToStr(UsingAlias, 'yes', 'no'), P.QoS, Topic, P.Message]);
   PushOnRX(Topic, P.Message, P.RespTopic, P.CorrelData, P.SubscriptionID);
 end;
 
@@ -486,7 +493,7 @@ end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubAck);
 begin
-  Debug('puback PacketID: %d', [P.PacketID]);
+  Debug('puback PacketID: %d, ReasonCode: %d', [P.PacketID, P.ReasonCode]);
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;
@@ -611,12 +618,13 @@ begin
   inherited Destroy;
 end;
 
-function TMQTTClient.Connect(Host: String; Port: Word; ID, User, Pass: String; SSL: Boolean): TMQTTError;
+function TMQTTClient.Connect(Host: String; Port: Word; ID, User, Pass: String; SSL, CleanStart: Boolean): TMQTTError;
 begin
   Result := ConnectSocket(Host, Port, SSL);
   if Result = mqeNoError then begin
     FKeepalive := MQTTDefaultKeepalive;
-    FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive);
+    FSessionExpiry := MQTTDefaultSessionExpiry;
+    FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive, CleanStart, FSessionExpiry);
     FLastPing := Now;
   end;
 end;

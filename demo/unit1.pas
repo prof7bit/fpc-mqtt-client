@@ -111,7 +111,7 @@ begin
   Ini.WriteString('server', 'pass', EditPass.Text);
   Ini.WriteBool('server', 'ssl', CheckBoxSSL.Checked);
   Res := FClient.Connect(EditHost.Text, StrToIntDef(EditPort.Text, 1883),
-    EditID.Text, EditUser.Text, EditPass.Text, CheckBoxSSL.Checked);
+    EditID.Text, EditUser.Text, EditPass.Text, CheckBoxSSL.Checked, False);
   if Res <> mqeNoError then
     Debug(Format('connect: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
 end;
@@ -131,7 +131,7 @@ begin
   Ini.WriteString('publish', 'resptopic', EditRespTopic.Text);
   Ini.WriteString('publish', 'correldata', EditCorrelData.Text);
   Res := FClient.Publish(EditPubTopic.Text, EditPubMessage.Text, EditRespTopic.Text,
-    TBytes(EditCorrelData.Text), 0, False);
+    TBytes(EditCorrelData.Text), 1, False);
   if Res <> mqeNoError then
     Debug(Format('publish: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
 end;
