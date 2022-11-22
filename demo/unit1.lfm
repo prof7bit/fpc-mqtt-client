@@ -1,11 +1,11 @@
 object Form1: TForm1
   AnchorSideRight.Side = asrBottom
-  Left = 409
-  Height = 726
-  Top = 321
+  Left = 433
+  Height = 660
+  Top = 341
   Width = 1024
   Caption = 'MQTT Client Demo'
-  ClientHeight = 726
+  ClientHeight = 660
   ClientWidth = 1024
   Constraints.MinHeight = 660
   Constraints.MinWidth = 1024
@@ -114,7 +114,7 @@ object Form1: TForm1
   inline SynEdit1: TSynEdit
     AnchorSideRight.Control = ButtonConnect
     Left = 16
-    Height = 703
+    Height = 637
     Top = 16
     Width = 675
     BorderSpacing.Right = 85

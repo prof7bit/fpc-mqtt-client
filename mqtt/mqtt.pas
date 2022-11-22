@@ -168,6 +168,9 @@ type
     procedure Handle(P: TMQTTDisconnect);
     procedure Handle(P: TMQTTUnsubAck);
     procedure Handle(P: TMQTTPubAck);
+    procedure Handle(P: TMQTTPubRec);
+    procedure Handle(P: TMQTTPubRel);
+    procedure Handle(P: TMQTTPubComp);
     function GetNewPacketID: UInt16;
     function ConnectSocket(Host: String; Port: Word; SSL: Boolean): TMQTTError;
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
@@ -296,13 +299,21 @@ begin
             mqwrData: begin
               P := Client.FSocket.ReadMQTTPacket;
               // Client.Debug('RX: %s %s', [P.ClassName, P.DebugPrint(True)]);
-              if      P is TMQTTConnAck     then Client.Handle(P as TMQTTConnAck)
+
+              // The order of the if branches below matters because some classes
+              // are subclasses of others, we need to check for the most specialized
+              // class first because the is operator detects any anchestor also!
+              // Therefore here in reverse order of declaration.
+              if      P is TMQTTDisconnect  then Client.Handle(P as TMQTTDisconnect)
               else if P is TMQTTPingResp    then Client.Handle(P as TMQTTPingResp)
-              else if P is TMQTTSubAck      then Client.Handle(P as TMQTTSubAck)
-              else if P is TMQTTPublish     then Client.Handle(P as TMQTTPublish)
-              else if P is TMQTTDisconnect  then Client.Handle(P as TMQTTDisconnect)
               else if P is TMQTTUnsubAck    then Client.Handle(P as TMQTTUnsubAck)
+              else if P is TMQTTSubAck      then Client.Handle(P as TMQTTSubAck)
+              else if P is TMQTTPubComp     then Client.Handle(P as TMQTTPubComp)
+              else if P is TMQTTPubRel      then Client.Handle(P as TMQTTPubRel)
+              else if P is TMQTTPubRec      then Client.Handle(P as TMQTTPubRec)
               else if P is TMQTTPubAck      then Client.Handle(P as TMQTTPubAck)
+              else if P is TMQTTPublish     then Client.Handle(P as TMQTTPublish)
+              else if P is TMQTTConnAck     then Client.Handle(P as TMQTTConnAck)
               else begin
                 Client.Debug('<- unknown packet type %d flags %d', [P.PacketType, P.PacketFlags]);
                 Client.Debug('   data %s', [P.DebugPrint(True)]);
@@ -507,6 +518,9 @@ begin
   UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');
   Debug('<- publish, PacketID: %d, alias: %s, QoS: %d, topic: %s, message: %s',
    [P.PacketID, BoolToStr(UsingAlias, 'yes', 'no'), P.QoS, Topic, P.Message]);
+
+  PushOnRX(Topic, P.Message, P.RespTopic, P.CorrelData, P.SubscriptionID);
+
   if P.QoS = 1 then begin
     Debug('-> puback, PacketID %d', [P.PacketID]);
     FLock.Acquire;
@@ -516,7 +530,6 @@ begin
       FLock.Release;
     end;
   end;
-  PushOnRX(Topic, P.Message, P.RespTopic, P.CorrelData, P.SubscriptionID);
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTDisconnect);
@@ -537,6 +550,21 @@ procedure TMQTTClient.Handle(P: TMQTTPubAck);
 begin
   Debug('<- puback, PacketID %d, ReasonCode %d', [P.PacketID, P.ReasonCode]);
   QueuedMsgRemove(P.PacketID);
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTPubRec);
+begin
+
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTPubRel);
+begin
+
+end;
+
+procedure TMQTTClient.Handle(P: TMQTTPubComp);
+begin
+
 end;
 
 function TMQTTClient.GetNewPacketID: UInt16;

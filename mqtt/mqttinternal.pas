@@ -84,7 +84,7 @@ type
 
   { TMQTTConnAck }
 
-  TMQTTConnAck = class(TMQTTParsedPacket) // Ch. 3.2
+  TMQTTConnAck = class(TMQTTParsedPacket)     // Ch. 3.2
     ConnAckFlags: Byte;
     ReasonCode: Byte;
     SessionExpiry: UInt32;
@@ -107,23 +107,9 @@ type
     procedure Parse; override;
   end;
 
-  TMQTTPingResp = class(TMQTTParsedPacket) // Ch. 3.13
-    // contains no data
-  end;
-
-  { TMQTTSubAck }
-
-  TMQTTSubAck = class(TMQTTParsedPacket) // Ch. 3.9
-    PacketID: UInt16;
-    ReasonString: UTF8String;
-    UserProperty: array of TMQTTStringPair;
-    ReasonCodes: array of Byte;
-    procedure Parse; override;
-  end;
-
   { TMQTTPublish }
 
-  TMQTTPublish = class(TMQTTParsedPacket) // Ch. 3.3
+  TMQTTPublish = class(TMQTTParsedPacket)     // Ch. 3.3
     Dup: Boolean;
     QoS: Byte;
     Retain: Boolean;
@@ -141,9 +127,51 @@ type
     procedure Parse; override;
   end;
 
+  { TMQTTPubAck }
+
+  TMQTTPubAck = class(TMQTTParsedPacket)      // Ch. 3.4
+    PacketID: Uint16;
+    ReasonCode: Byte;
+    ReasonString: UTF8String;
+    UserProperty: array of TMQTTStringPair;
+    procedure Parse; override;
+  end;
+
+  TMQTTPubRec = class(TMQTTPubAck)            // Ch. 3.5
+    // exact same structure as PubAck
+  end;
+
+  TMQTTPubRel = class(TMQTTPubAck)            // Ch. 3.6
+    // exact same structure as PubAck
+  end;
+
+  TMQTTPubComp = class(TMQTTPubAck)           // Ch. 3.7
+    // exact same structure as PubAck
+  end;
+
+  { TMQTTSubAck }
+
+  TMQTTSubAck = class(TMQTTParsedPacket)      // Ch. 3.9
+    PacketID: UInt16;
+    ReasonString: UTF8String;
+    UserProperty: array of TMQTTStringPair;
+    ReasonCodes: array of Byte;
+    procedure Parse; override;
+  end;
+
+  { TMQTTUnsubAck }
+
+  TMQTTUnsubAck = class(TMQTTSubAck)          // Ch. 3.11
+    // exact same structure as SubAck
+  end;
+
+  TMQTTPingResp = class(TMQTTParsedPacket)    // Ch. 3.13
+    // contains no data
+  end;
+
   { TMQTTDisconnect }
 
-  TMQTTDisconnect = class(TMQTTParsedPacket) // Ch. 3.14
+  TMQTTDisconnect = class(TMQTTParsedPacket)  // Ch. 3.14
     ReasonCode: Byte;
     ExpiryInterval: UInt32;
     ReasonString: UTF8String;
@@ -152,25 +180,7 @@ type
     procedure Parse; override;
   end;
 
-  { TMQTTUnsubAck }
-
-  TMQTTUnsubAck = class(TMQTTParsedPacket)
-    PacketID: UInt16;
-    ReasonString: UTF8String;
-    UserProperty: array of TMQTTStringPair;
-    ReasonCodes: array of Byte;
-    procedure Parse; override;
-  end;
-
-  { TMQTTPubAck }
-
-  TMQTTPubAck = class(TMQTTParsedPacket)
-    PacketID: Uint16;
-    ReasonCode: Byte;
-    ReasonString: UTF8String;
-    UserProperty: array of TMQTTStringPair;
-    procedure Parse; override;
-  end;
+  CMQTTParsedPacket = class of TMQTTParsedPacket;
 
   { TMQTTStream }
 
@@ -201,209 +211,38 @@ type
 
 implementation
 
-{ TMQTTPubAck }
+{ TMQTTParsedPacket }
 
-procedure TMQTTPubAck.Parse;
-var
-  PropLen: UInt32;
-  PropEnd: UInt32;
-  Prop: Byte;
+constructor TMQTTParsedPacket.Create(AType: TMQTTPacketType; AFlags: Byte; ARemaining: TMemoryStream);
 begin
-  with Remaining do begin
-    PacketID := ReadInt16Big;                       // Ch. 3.4.2
-
-    // Attention! Chapter 3.4.2.1 states that if remaining length = 2
-    // then there will be no reason code amd 0 is assumed instead.
-    // Consequently there also won't be a property section and not
-    // even a property length, because all bytes are already consumed.
-    if Remaining.Size = 2 then
-      ReasonCode := 0
-
-    else begin
-      ReasonCode := ReadByte;                       // Ch. 3.4.2.1
-
-      // Again, according to Chapter 3.4.2.2.1 another special condition:
-      // if remaining legnth is less than 4 there won't be a property
-      // length field and 0 is assumed.
-      if Remaining.Size < 4 then
-        PropLen := 0
-      else
-        PropLen := ReadVarInt;                      // Ch. 3.4.2.2.1
-
-      // begin properties                           // Ch. 3.4.2.2
-      PropEnd := Position + PropLen;
-      while Position < PropEnd do begin
-        Prop := ReadByte;
-        case Prop of
-          31: ReasonString := ReadMQTTString;       // Ch. 3.4.2.2.2
-          38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.4.2.2.3
-        else
-          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBACK packet', [Prop]));
-        end
-      end;
-      // end properties
-
-    end;
-
-    // no payload                                   // Ch. 3.4.3
-  end;
+  inherited Create;
+  Remaining := ARemaining;
+  Remaining.Seek(0, soBeginning);
+  PacketType := AType;
+  PacketFlags := AFlags;
+  Parse;
 end;
 
-{ TMQTTUnsubAck }
-
-procedure TMQTTUnsubAck.Parse;
-var
-  PropLen: UInt32;
-  PropEnd: UInt32;
-  Prop: Byte;
+destructor TMQTTParsedPacket.Destroy;
 begin
-  with Remaining do begin
-    PacketID := ReadInt16Big;                     // Ch. 3.11.2
-
-    // begin properties                           // Ch. 3.11.2.1
-    PropLen := ReadVarInt;                        // Ch. 3.11.2.1.1
-    PropEnd := Position + PropLen;
-    while Position < PropEnd do begin
-      Prop := ReadByte;
-      case Prop of
-        31: ReasonString := ReadMQTTString;       // Ch. 3.11.2.1.2
-        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.11.2.1.3
-      else
-        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in UNSUBACK packet', [Prop]));
-      end;
-    end;
-    // end properties
-
-    // begin payload
-    while Position < Size do begin
-      ReasonCodes += [ReadByte];                  // Ch. 3.11.3
-    end;
-    // end payload
-  end;
+  Remaining.Free;
+  inherited Destroy;
 end;
 
-{ TMQTTDisconnect }
-
-procedure TMQTTDisconnect.Parse;
-var
-  PropLen: UInt32;
-  PropEnd: UInt32;
-  Prop: Byte;
+procedure TMQTTParsedPacket.Parse;
 begin
-  with Remaining do begin
-    // Reason code is omitted and assumed zero if remaining length
-    // is less than 1 (Ch. 3.14.2.1). At this point we stop parsing,
-    // there is no data anymore.
-    If Remaining.Size < 1 then begin
-      ReasonCode := 0;
-      exit;
-    end
-    else
-      ReasonCode := ReadByte;                     // Ch. 3.14.2.1
-
-    // begin properties
-
-    // Property Lenth is omitted and assumed zero if remaining length
-    // is less than 2 (Ch. 3.14.2.2.1). At this point we stop parsing,
-    // there is no data anymore.
-    if Remaining.Size < 2 then begin
-      exit;
-    end
-    else
-      PropLen := ReadVarInt;                      // Ch. 3.14.2.2.1
-
-    PropEnd := Position + PropLen;
-    while Position < PropEnd do begin
-      Prop := ReadByte;
-      case Prop of
-        17: ExpiryInterval := ReadInt32Big;       // Ch. 3.14.2.2.2
-        31: ReasonString := ReadMQTTString;       // Ch. 3.14.2.2.3
-        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.14.2.2.4
-        28: ServerReference := ReadMQTTString;    // Ch. 3.14.2.5
-      else
-        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in DISCONNECT packet', [Prop]));
-      end
-    end;
-    // end properties
-
-    // no payload
-  end;
+  // empty default implementation, do nothing.
 end;
 
-{ TMQTTPublish }
-
-procedure TMQTTPublish.Parse;
-var
-  PropLen: UInt32;
-  PropEnd: UInt32;
-  Prop: Byte;
+function TMQTTParsedPacket.DebugPrint(FromStart: Boolean): String;
 begin
-  Retain := Boolean(PacketFlags and %0001);
-  QoS := (PacketFlags and %0110) shr 1;
-  Dup := Boolean(PacketFlags and %1000);
-  with Remaining do begin
-    TopicName := ReadMQTTString;                  // Ch. 3.3.2.1
-    if QoS > 0 then
-      PacketID := ReadInt16Big;                   // Ch. 3.3.2.2
-
-    // begin properties
-    PropLen := ReadVarInt;                        // Ch. 3.3.2.3.1
-    PropEnd := Position + PropLen;
-    while Position < PropEnd do begin
-      Prop := ReadByte;
-      case Prop of
-        01: PayloadFormat := ReadByte;            // Ch. 3.3.2.3.2
-        02: ExpiryInterval := ReadInt32Big;       // Ch. 3.3.2.3.3
-        35: TopicAlias := ReadInt16Big;           // Ch. 3.3.2.3.4
-        08: RespTopic := ReadMQTTString;          // Ch. 3.3.2.3.5
-        09: CorrelData := ReadMQTTBin;            // Ch. 3.3.2.3.6
-        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.3.2.3.7
-        11: SubscriptionID += [ReadVarInt];       // Ch. 3.3.2.3.8
-        03: ContentType := ReadMQTTString;        // Ch. 3.3.2.3.9
-      else
-        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBLISH packet', [Prop]));
-      end;
-    end;
-    // end properties
-
-    // begin payload
-    SetLength(Message, Size - Position);
-    ReadBuffer(Message[1], Size - Position);
-    // end payload
+  Result := '';
+  if FromStart then
+     Remaining.Seek(0, soBeginning);
+  while Remaining.Position < Remaining.Size do begin
+    Result += IntToHex(Remaining.ReadByte, 2) + ' ';
   end;
-end;
-
-{ TMQTTSubAck }
-
-procedure TMQTTSubAck.Parse;
-var
-  PropLen: UInt32;
-  PropEnd: UInt32;
-  Prop: Byte;
-begin
-  with Remaining do begin
-    PacketID := ReadInt16Big;                     // Ch. 3.9.2
-
-    // begin properties
-    PropLen := ReadVarInt;                        // Ch. 3.9.2.1.1
-    PropEnd := Position + PropLen;
-    while Position < PropEnd do begin
-      Prop := ReadByte;
-      case Prop of
-        31: ReasonString := ReadMQTTString;       // Ch. 3.9.2.1.2
-        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.9.2.1.3
-        else
-          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in SUBACK packet', [Prop]));
-      end;
-    end;
-    // end properties
-
-    // begin payload                              // Ch. 3.9.3
-    while Position < Size do begin
-      ReasonCodes += [ReadByte];
-    end;
-    // end payload
-  end;
+  Remaining.Seek(0, soBeginning);
 end;
 
 { TMQTTConnAck }
@@ -459,38 +298,176 @@ begin
   end;
 end;
 
-{ TMQTTParsedPacket }
+{ TMQTTPublish }
 
-constructor TMQTTParsedPacket.Create(AType: TMQTTPacketType; AFlags: Byte; ARemaining: TMemoryStream);
+procedure TMQTTPublish.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
 begin
-  inherited Create;
-  Remaining := ARemaining;
-  Remaining.Seek(0, soBeginning);
-  PacketType := AType;
-  PacketFlags := AFlags;
-  Parse;
-end;
+  Retain := Boolean(PacketFlags and %0001);
+  QoS := (PacketFlags and %0110) shr 1;
+  Dup := Boolean(PacketFlags and %1000);
+  with Remaining do begin
+    TopicName := ReadMQTTString;                  // Ch. 3.3.2.1
+    if QoS > 0 then
+      PacketID := ReadInt16Big;                   // Ch. 3.3.2.2
 
-destructor TMQTTParsedPacket.Destroy;
-begin
-  Remaining.Free;
-  inherited Destroy;
-end;
+    // begin properties
+    PropLen := ReadVarInt;                        // Ch. 3.3.2.3.1
+    PropEnd := Position + PropLen;
+    while Position < PropEnd do begin
+      Prop := ReadByte;
+      case Prop of
+        01: PayloadFormat := ReadByte;            // Ch. 3.3.2.3.2
+        02: ExpiryInterval := ReadInt32Big;       // Ch. 3.3.2.3.3
+        35: TopicAlias := ReadInt16Big;           // Ch. 3.3.2.3.4
+        08: RespTopic := ReadMQTTString;          // Ch. 3.3.2.3.5
+        09: CorrelData := ReadMQTTBin;            // Ch. 3.3.2.3.6
+        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.3.2.3.7
+        11: SubscriptionID += [ReadVarInt];       // Ch. 3.3.2.3.8
+        03: ContentType := ReadMQTTString;        // Ch. 3.3.2.3.9
+      else
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBLISH packet', [Prop]));
+      end;
+    end;
+    // end properties
 
-procedure TMQTTParsedPacket.Parse;
-begin
-  // empty default implementation, do nothing.
-end;
-
-function TMQTTParsedPacket.DebugPrint(FromStart: Boolean): String;
-begin
-  Result := '';
-  if FromStart then
-     Remaining.Seek(0, soBeginning);
-  while Remaining.Position < Remaining.Size do begin
-    Result += IntToHex(Remaining.ReadByte, 2) + ' ';
+    // begin payload
+    SetLength(Message, Size - Position);
+    ReadBuffer(Message[1], Size - Position);
+    // end payload
   end;
-  Remaining.Seek(0, soBeginning);
+end;
+
+{ TMQTTPubAck }
+
+procedure TMQTTPubAck.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+begin
+  with Remaining do begin
+    PacketID := ReadInt16Big;                       // Ch. 3.4.2
+
+    // Attention! Chapter 3.4.2.1 states that if remaining length = 2
+    // then there will be no reason code amd 0 is assumed instead.
+    // Consequently there also won't be a property section and not
+    // even a property length, because all bytes are already consumed.
+    if Remaining.Size = 2 then
+      ReasonCode := 0
+
+    else begin
+      ReasonCode := ReadByte;                       // Ch. 3.4.2.1
+
+      // Again, according to Chapter 3.4.2.2.1 another special condition:
+      // if remaining legnth is less than 4 there won't be a property
+      // length field and 0 is assumed.
+      if Remaining.Size < 4 then
+        PropLen := 0
+      else
+        PropLen := ReadVarInt;                      // Ch. 3.4.2.2.1
+
+      // begin properties                           // Ch. 3.4.2.2
+      PropEnd := Position + PropLen;
+      while Position < PropEnd do begin
+        Prop := ReadByte;
+        case Prop of
+          31: ReasonString := ReadMQTTString;       // Ch. 3.4.2.2.2
+          38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.4.2.2.3
+        else
+          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in PUBACK packet', [Prop]));
+        end
+      end;
+      // end properties
+
+    end;
+
+    // no payload                                   // Ch. 3.4.3
+  end;
+end;
+
+{ TMQTTSubAck }
+
+procedure TMQTTSubAck.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+begin
+  with Remaining do begin
+    PacketID := ReadInt16Big;                     // Ch. 3.9.2
+
+    // begin properties
+    PropLen := ReadVarInt;                        // Ch. 3.9.2.1.1
+    PropEnd := Position + PropLen;
+    while Position < PropEnd do begin
+      Prop := ReadByte;
+      case Prop of
+        31: ReasonString := ReadMQTTString;       // Ch. 3.9.2.1.2
+        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.9.2.1.3
+        else
+          raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in SUBACK packet', [Prop]));
+      end;
+    end;
+    // end properties
+
+    // begin payload                              // Ch. 3.9.3
+    while Position < Size do begin
+      ReasonCodes += [ReadByte];
+    end;
+    // end payload
+  end;
+end;
+
+{ TMQTTDisconnect }
+
+procedure TMQTTDisconnect.Parse;
+var
+  PropLen: UInt32;
+  PropEnd: UInt32;
+  Prop: Byte;
+begin
+  with Remaining do begin
+    // Reason code is omitted and assumed zero if remaining length
+    // is less than 1 (Ch. 3.14.2.1). At this point we stop parsing,
+    // there is no data anymore.
+    If Remaining.Size < 1 then begin
+      ReasonCode := 0;
+      exit;
+    end
+    else
+      ReasonCode := ReadByte;                     // Ch. 3.14.2.1
+
+    // begin properties
+
+    // Property Lenth is omitted and assumed zero if remaining length
+    // is less than 2 (Ch. 3.14.2.2.1). At this point we stop parsing,
+    // there is no data anymore.
+    if Remaining.Size < 2 then begin
+      exit;
+    end
+    else
+      PropLen := ReadVarInt;                      // Ch. 3.14.2.2.1
+
+    PropEnd := Position + PropLen;
+    while Position < PropEnd do begin
+      Prop := ReadByte;
+      case Prop of
+        17: ExpiryInterval := ReadInt32Big;       // Ch. 3.14.2.2.2
+        31: ReasonString := ReadMQTTString;       // Ch. 3.14.2.2.3
+        38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.14.2.2.4
+        28: ServerReference := ReadMQTTString;    // Ch. 3.14.2.5
+      else
+        raise EMQTTUnexpectedProperty.Create(Format('unexpected prop %d in DISCONNECT packet', [Prop]));
+      end
+    end;
+    // end properties
+
+    // no payload
+  end;
 end;
 
 { TMQTTStream }
@@ -658,7 +635,7 @@ begin
     // end props
 
     // begin payload
-    SubsOpt := %00000001;                     // max QoS = 1
+    SubsOpt := %00000010;                     // max QoS = 2
     WriteMQTTString(Topic);                   //                  (Ch. 3.8.3)
     WriteByte(SubsOpt);                       // subscr. opt      (Ch. 3.8.3.1)
     // end payload
@@ -822,12 +799,33 @@ begin
 end;
 
 function TMQTTStream.ReadMQTTPacket: TMQTTParsedPacket;
+const
+  MsgCls: array[TMQTTPacketType] of CMQTTParsedPacket = (
+    TMQTTParsedPacket,  // reserved
+    TMQTTParsedPacket,  // connect (we don't receive these)
+    TMQTTConnAck,
+    TMQTTPublish,
+    TMQTTPubAck,
+    TMQTTPubRec,
+    TMQTTPubRel,
+    TMQTTPubComp,
+    TMQTTParsedPacket,  // subscribe (we don't revceive these)
+    TMQTTSubAck,
+    TMQTTParsedPacket,  // unsubscribe (we don't revceive these)
+    TMQTTUnsubAck,
+    TMQTTParsedPacket,  // pingreq (we don't revceive these)
+    TMQTTPingResp,
+    TMQTTDisconnect,
+    TMQTTParsedPacket   // auth (fixme, need to implement this)
+  );
+
 var
   Fixed: Byte;
   Typ: TMQTTPacketType;
   Flags: Byte;
   RemLen: UInt32;
   Remaining: TMemoryStream;
+
 begin
   // fixed header
   Fixed := ReadByte;
@@ -839,17 +837,8 @@ begin
   Remaining := TMemoryStream.Create;
   if RemLen > 0 then
     Remaining.CopyFrom(Self, RemLen);
-  case Typ of
-    mqptConnAck:    Result := TMQTTConnAck.Create(Typ, Flags, Remaining);
-    mqptPingResp:   Result := TMQTTPingResp.Create(Typ, Flags, Remaining);
-    mqptSubAck:     Result := TMQTTSubAck.Create(Typ, Flags, Remaining);
-    mqptPublish:    Result := TMQTTPublish.Create(Typ, Flags, Remaining);
-    mqptDisconnect: Result := TMQTTDisconnect.Create(Typ, Flags, Remaining);
-    mqptUnsubAck:   Result := TMQTTUnsubAck.Create(Typ, Flags, Remaining);
-    mqptPubAck:     Result := TMQTTPubAck.Create(Typ, Flags, Remaining);
-  else
-    Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
-  end;
+
+  Result := MsgCls[Typ].Create(Typ, Flags, Remaining);
 end;
 
 function TMQTTStream.CopyTo(Dest: TStream; Size: Int64): Int64;
