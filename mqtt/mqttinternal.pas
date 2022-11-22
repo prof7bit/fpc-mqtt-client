@@ -194,6 +194,7 @@ type
     function ReadMQTTBin: TBytes;
     function ReadMQTTStringPair: TMQTTStringPair;
     function ReadMQTTPacket: TMQTTParsedPacket;
+    function CopyTo(Dest: TStream; Size: Int64): Int64;
   end;
 
 
@@ -581,7 +582,7 @@ type
   );
 
 var
-  Remaining, Props: TMemoryStream;
+  Remaining: TMemoryStream;
   ConnectFlags: Set of TConnectFlag;
 begin
   ConnectFlags := [cfUser, cfPass];
@@ -597,8 +598,7 @@ begin
     WriteInt16Big(Keepalive);                 // keepalive        (Ch. 3.1.2.10)
 
     // begin properties                                           (Ch. 3.1.2.11)
-    Props := TMemoryStream.Create;
-    with Props do begin
+    with TMemoryStream.Create do begin
       if SessionExpiry > 0 then begin
         WriteByte(17);                        // Session Expiry   (Ch. 3.1.2.11.2)
         WriteInt32Big(SessionExpiry);
@@ -606,10 +606,10 @@ begin
       WriteByte(34);                          // Topic Alias Max  (Ch. 3.1.2.11.5)
       WriteInt16Big($ffff);
       Seek(0, soBeginning);
+      Remaining.WriteVarInt(Size);            // props length     (Ch. 3.1.2.11.1)
+      CopyTo(Remaining, Size);                // props data
+      Free;
     end;
-    WriteVarInt(Props.Size);                  // props length     (Ch. 3.1.2.11.1)
-    CopyFrom(Props, Props.Size);              // props data
-    Props.Free;
     // end properties
 
     // begin payload                                              (Ch. 3.1.3)
@@ -636,7 +636,6 @@ end;
 procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
 var
   Remaining: TMemoryStream;
-  Props: TMemoryStream;
   SubsOpt: Byte;
 begin
   // Ch. 3.8
@@ -645,15 +644,16 @@ begin
     WriteInt16Big(PacketID);                  // bytes 1..2       (Ch. 3.8.2)
 
     // begin props                            //                  (Ch. 3.8.2.1)
-    Props := TMemoryStream.Create;
-    if SubsID > 0 then begin
-      Props.WriteByte(11);                    // subcription ID   (Ch. 3.8.2.1.2)
-      Props.WriteVarInt(SubsID);
+    with TMemoryStream.Create do begin
+      if SubsID > 0 then begin
+        WriteByte(11);                        // subcription ID   (Ch. 3.8.2.1.2)
+        WriteVarInt(SubsID);
+      end;
+      Seek(0, soBeginning);
+      Remaining.WriteVarInt(Size);
+      CopyTo(Remaining, Size);
+      Free;
     end;
-    Props.Seek(0, soBeginning);
-    WriteVarInt(Props.Size);                  // props length     (Ch. 3.8.2.1.1)
-    CopyFrom(Props, Props.size);
-    Props.Free;
     // end props
 
     // begin payload
@@ -671,7 +671,6 @@ end;
 procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean);
 var
   Remaining: TMemoryStream;
-  Props: TMemoryStream;
   Flags: Byte = 0;
 begin
   // Ch. 3.8
@@ -687,8 +686,7 @@ begin
        WriteInt16Big(PacketID);
 
     // begin props
-    Props := TMemoryStream.Create;
-    with Props do begin
+    with TMemoryStream.Create do begin
       if ResponseTopic <> '' then begin
         WriteByte(8);
         WriteMQTTString(ResponseTopic);       // response topic   (Ch. 3.3.2.3.5)
@@ -697,11 +695,11 @@ begin
         WriteByte(9);
         WriteMQTTBin(CorrelData);             // correlation data (Ch. 3.3.2.3.6)
       end;
+      Seek(0, soBeginning);
+      Remaining.WriteVarInt(Size);
+      CopyTo(Remaining, Size);
+      Free;
     end;
-    Props.Seek(0, soBeginning);
-    WriteVarInt(Props.Size);
-    CopyFrom(Props, Props.Size);
-    Props.Free;
     // end props
 
     // begin payload
@@ -832,6 +830,11 @@ begin
   else
     Result := TMQTTParsedPacket.Create(Typ, Flags, Remaining);
   end;
+end;
+
+function TMQTTStream.CopyTo(Dest: TStream; Size: Int64): Int64;
+begin
+  Result := Dest.CopyFrom(Self, Size);
 end;
 
 end.
