@@ -105,7 +105,7 @@ type
     Retain: Boolean;
   end;
 
-  TMQTTQueuedPubRel = record
+  TMQTTQueuedPubRelRec = record
     PacketID: uint16;
   end;
 
@@ -123,7 +123,7 @@ type
   end;
 
   TMQTTQueuedPublishList = specialize TMQTTlist<TMQTTQueuedMessage>;
-  TMQTTQueuedPubRelList = specialize TMQTTlist<TMQTTQueuedPubRel>;
+  TMQTTQueuedPubRelRecList = specialize TMQTTlist<TMQTTQueuedPubRelRec>;
 
   { TMQTTSocket }
 
@@ -161,7 +161,8 @@ type
     FRXQueue: array of TMQTTRXData;
     FTopicAliases: array of TTopicAlias;
     FQueuedMessages: TMQTTQueuedPublishList;
-    FQueuedPubRel: TMQTTQueuedPubRelList;
+    FQueuedPubRel: TMQTTQueuedPubRelRecList;
+    FQueuedPubRec: TMQTTQueuedPubRelRecList;
     FDebugTxt: String;
     FLock: TCriticalSection;
     FListenWake: TEvent;
@@ -197,7 +198,7 @@ type
     function HandleTopicAlias(ID: UInt16; Topic: String): String;
     procedure QueuedPublishAdd(Msg: TMQTTQueuedMessage);
     procedure QueuedPublishRemove(PacketID: UInt16);
-    procedure QueuedPubRelAdd(PubRel: TMQTTQueuedPubRel);
+    procedure QueuedPubRelAdd(PubRel: TMQTTQueuedPubRelRec);
     procedure QueuedPubRelRemove(PacketID: UInt16);
   public
     constructor Create(AOwner: TComponent); override;
@@ -618,6 +619,15 @@ begin
     finally
       FLock.Release;
     end;
+  end
+  else if P.QoS = 2 then begin
+    Debug('-> pubrec, PacketID %d', [P.PacketID]);
+    FLock.Acquire;
+    try
+      FSocket.WriteMQTTPubRec(P.PacketID, 0);
+    finally
+      FLock.Release;
+    end;
   end;
 end;
 
@@ -643,7 +653,7 @@ end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubRec);
 var
-  PR: TMQTTQueuedPubRel;
+  PR: TMQTTQueuedPubRelRec;
 begin
   Debug('<- pubrec, PacketID %d', [P.PacketID]);
   PR.PacketID := P.PacketID;
@@ -661,6 +671,13 @@ end;
 procedure TMQTTClient.Handle(P: TMQTTPubRel);
 begin
   Debug('<- pubrel, PacketID %d', [P.PacketID]);
+  Debug('-> pubcomp, PacketID %d', [P.PacketID]);
+  FLock.Acquire;
+  try
+    FSocket.WriteMQTTPubComp(P.PacketID, 0);
+  finally
+    FLock.Release;
+  end;
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPubComp);
@@ -781,7 +798,7 @@ begin
     Debug('unacked publish PacketID %d not found, Length %d', [PacketID, L])
 end;
 
-procedure TMQTTClient.QueuedPubRelAdd(PubRel: TMQTTQueuedPubRel);
+procedure TMQTTClient.QueuedPubRelAdd(PubRel: TMQTTQueuedPubRelRec);
 var
   L: Integer;
 begin
@@ -807,7 +824,8 @@ begin
   inherited Create(AOwner);
   FMaxQos := 2;
   FQueuedMessages := TMQTTQueuedPublishList.Create;
-  FQueuedPubRel := TMQTTQueuedPubRelList.Create;
+  FQueuedPubRel := TMQTTQueuedPubRelRecList.Create;
+  FQueuedPubRec := TMQTTQueuedPubRelRecList.Create;
   FLock := TCriticalSection.Create;
   FListenWake := TEventObject.Create(nil, False, False, '');
   FSocket := nil;
@@ -832,6 +850,7 @@ begin
   FListenThread.Free;
   FreeAndNil(FLock);
   FreeAndNil(FListenWake);
+  FQueuedPubRec.Free;
   FQueuedPubRel.Free;
   FQueuedMessages.Free;
   inherited Destroy;

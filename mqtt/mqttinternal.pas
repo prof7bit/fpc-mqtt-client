@@ -197,7 +197,9 @@ type
     procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean);
     procedure WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
     procedure WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
+    procedure WriteMQTTPubRec(PacketID: UInt16; ReasonCode: Byte);
     procedure WriteMQTTPubRel(PacketID: UInt16; ReasonCode: Byte);
+    procedure WriteMQTTPubComp(PacketID: UInt16; ReasonCode: Byte);
 
     function ReadVarInt: UInt32;
     function ReadInt16Big: UInt16;
@@ -753,6 +755,23 @@ begin
   Remaining.Free;
 end;
 
+procedure TMQTTStream.WriteMQTTPubRec(PacketID: UInt16; ReasonCode: Byte);
+var
+  Remaining: TMemoryStream;
+begin
+  // Ch. 3.5
+  Remaining := TMemoryStream.Create;
+  with Remaining do begin
+    WriteInt16Big(PacketID);        // Ch. 3.5.2
+    WriteByte(ReasonCode);          // Ch. 3.5.2, 3.5.2.1
+    WriteVarInt(0);                 // Ch. 3.5.2 (prop len)
+    // no properties
+    // no payload
+  end;
+  WriteMQTTPacket(mqptPubRec, %0000, Remaining);
+  Remaining.Free;
+end;
+
 procedure TMQTTStream.WriteMQTTPubRel(PacketID: UInt16; ReasonCode: Byte);
 var
   Remaining: TMemoryStream;
@@ -767,6 +786,23 @@ begin
     // no payload
   end;
   WriteMQTTPacket(mqptPubRel, %0010, Remaining);
+  Remaining.Free;
+end;
+
+procedure TMQTTStream.WriteMQTTPubComp(PacketID: UInt16; ReasonCode: Byte);
+var
+  Remaining: TMemoryStream;
+begin
+  // Ch. 3.7
+  Remaining := TMemoryStream.Create;
+  with Remaining do begin
+    WriteInt16Big(PacketID);        // Ch. 3.7.2
+    WriteByte(ReasonCode);          // Ch. 3.7.2, 3.7.2.1
+    WriteVarInt(0);                 // Ch. 3.7.2 (prop len)
+    // no properties
+    // no payload
+  end;
+  WriteMQTTPacket(mqptPubComp, %0000, Remaining);
   Remaining.Free;
 end;
 
