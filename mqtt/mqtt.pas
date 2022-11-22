@@ -738,6 +738,9 @@ end;
 function TMQTTClient.Subscribe(ATopicFilter: String; ASubsID: UInt32): TMQTTError;
 begin
   Result := mqeNoError;
+  if not Connected then
+    exit(mqeNotConnected);
+
   if ASubsID >= $0fffffff {Ch. 3.8.2.1.2} then
     exit(mqeInvalidSubscriptionID);
 
@@ -758,6 +761,9 @@ end;
 function TMQTTClient.Unsubscribe(ATopicFilter: String): TMQTTError;
 begin
   Result := mqeNoError;
+  if not connected then
+    exit(mqeNotConnected);
+
   if ATopicFilter <> '' then begin
     FLock.Acquire;
     try
