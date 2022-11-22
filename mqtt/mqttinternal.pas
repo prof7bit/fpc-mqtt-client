@@ -229,7 +229,6 @@ begin
         PropLen := ReadVarInt;                      // Ch. 3.4.2.2.1
 
       // begin properties                           // Ch. 3.4.2.2
-      PropLen := ReadVarInt;                        // Ch. 3.4.2.2.1
       PropEnd := Position + PropLen;
       while Position < PropEnd do begin
         Prop := ReadByte;
