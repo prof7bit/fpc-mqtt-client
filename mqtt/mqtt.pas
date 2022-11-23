@@ -268,6 +268,31 @@ implementation
 uses
   BaseUnix;
 
+{$else}
+uses
+  WinSock2;
+
+procedure fpFD_ZERO(out nset: TFDSet);
+begin
+  FD_ZERO(nset);
+end;
+
+procedure fpFD_SET(fdno: LongInt; var nset: TFDSet);
+begin
+  FD_SET(fdno, nset);
+end;
+
+function fpSelect(N: LongInt; readfds, writefds, exceptfds: pfdset; TimeOut: PTimeVal): LongInt;
+begin
+  Result := select(N, readfds, writefds, exceptfds, TimeOut);
+end;
+
+Function fpFD_ISSET (fdno: LongInt; var nset: TFDSet): LongInt;
+begin
+  Result := LongInt(FD_ISSET(fdno, nset));
+end;
+{$endif}
+
 { TLockComponent }
 
 constructor TLockComponent.Create(AOwner: TComponent);
@@ -334,31 +359,6 @@ begin
     Unlock;
   end;
 end;
-
-{$else}
-uses
-  WinSock2;
-
-procedure fpFD_ZERO(out nset: TFDSet);
-begin
-  FD_ZERO(nset);
-end;
-
-procedure fpFD_SET(fdno: LongInt; var nset: TFDSet);
-begin
-  FD_SET(fdno, nset);
-end;
-
-function fpSelect(N: LongInt; readfds, writefds, exceptfds: pfdset; TimeOut: PTimeVal): LongInt;
-begin
-  Result := select(N, readfds, writefds, exceptfds, TimeOut);
-end;
-
-Function fpFD_ISSET (fdno: LongInt; var nset: TFDSet): LongInt;
-begin
-  Result := LongInt(FD_ISSET(fdno, nset));
-end;
-{$endif}
 
 { TMQTTlist }
 
