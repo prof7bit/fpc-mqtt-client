@@ -185,6 +185,9 @@ type
   { TMQTTStream }
 
   TMQTTStream = class helper for TStream
+  private
+    procedure WriteMQTTPubXxx(PacketID: UInt16; ReasonCode: Byte; PacketTyoe: TMQTTPacketType; Flags: Byte);
+  public
     procedure WriteVarInt(X: UInt32);
     procedure WriteInt16Big(X: UInt16);
     procedure WriteInt32Big(X: UInt32);
@@ -733,27 +736,26 @@ begin
   with Remaining do begin
     WriteInt16Big(PacketID);        // Ch. 3.10.2
 
-
-    // begin props                  // Ch. 3.10.2.1
-    WriteVarInt(0);
+    WriteVarInt(0);                 // Ch. 3.10.2.1.1
     // no props
-    // end props
 
     // begin payload
     WriteMQTTString(Topic);         // Ch. 3.10.3
     // end payload
   end;
-
   // write an MQTT packet with fixed header and remaining data
   WriteMQTTPacket(mqptUnsubscribe, %0010, Remaining);
   Remaining.Free;
 end;
 
-procedure TMQTTStream.WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
+procedure TMQTTStream.WriteMQTTPubXxx(PacketID: UInt16; ReasonCode: Byte; PacketTyoe: TMQTTPacketType; Flags: Byte);
 var
   Remaining: TMemoryStream;
 begin
-  // Ch. 3.4
+  // Ch. 3.4 (PubAck)
+  // also used for Ch. 3.5 (PubRec)
+  // also used for Ch. 3.6 (PubRel)
+  // also used for Ch. 3.7 (PubComp)
   Remaining := TMemoryStream.Create;
   with Remaining do begin
     WriteInt16Big(PacketID);        // Ch. 3.4.2
@@ -762,59 +764,36 @@ begin
     // no properties
     // no payload
   end;
-  WriteMQTTPacket(mqptPubAck, %0000, Remaining);
+  WriteMQTTPacket(PacketTyoe, Flags, Remaining);
   Remaining.Free;
+end;
+
+procedure TMQTTStream.WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
+begin
+  // Ch. 3.4
+  // PubAck, PubRec, PubRel, PubComp all share the exact same structure
+  WriteMQTTPubXxx(PacketID, ReasonCode, mqptPubAck, %0000);
 end;
 
 procedure TMQTTStream.WriteMQTTPubRec(PacketID: UInt16; ReasonCode: Byte);
-var
-  Remaining: TMemoryStream;
 begin
   // Ch. 3.5
-  Remaining := TMemoryStream.Create;
-  with Remaining do begin
-    WriteInt16Big(PacketID);        // Ch. 3.5.2
-    WriteByte(ReasonCode);          // Ch. 3.5.2, 3.5.2.1
-    WriteVarInt(0);                 // Ch. 3.5.2 (prop len)
-    // no properties
-    // no payload
-  end;
-  WriteMQTTPacket(mqptPubRec, %0000, Remaining);
-  Remaining.Free;
+  // PubAck, PubRec, PubRel, PubComp all share the exact same structure
+  WriteMQTTPubXxx(PacketID, ReasonCode, mqptPubRec, %0000);
 end;
 
 procedure TMQTTStream.WriteMQTTPubRel(PacketID: UInt16; ReasonCode: Byte);
-var
-  Remaining: TMemoryStream;
 begin
   // Ch. 3.6
-  Remaining := TMemoryStream.Create;
-  with Remaining do begin
-    WriteInt16Big(PacketID);        // Ch. 3.6.2
-    WriteByte(ReasonCode);          // Ch. 3.6.2, 3.6.2.1
-    WriteVarInt(0);                 // Ch. 3.6.2 (prop len)
-    // no properties
-    // no payload
-  end;
-  WriteMQTTPacket(mqptPubRel, %0010, Remaining);
-  Remaining.Free;
+  // PubAck, PubRec, PubRel, PubComp all share the exact same structure
+  WriteMQTTPubXxx(PacketID, ReasonCode, mqptPubRel, %0010);
 end;
 
 procedure TMQTTStream.WriteMQTTPubComp(PacketID: UInt16; ReasonCode: Byte);
-var
-  Remaining: TMemoryStream;
 begin
   // Ch. 3.7
-  Remaining := TMemoryStream.Create;
-  with Remaining do begin
-    WriteInt16Big(PacketID);        // Ch. 3.7.2
-    WriteByte(ReasonCode);          // Ch. 3.7.2, 3.7.2.1
-    WriteVarInt(0);                 // Ch. 3.7.2 (prop len)
-    // no properties
-    // no payload
-  end;
-  WriteMQTTPacket(mqptPubComp, %0000, Remaining);
-  Remaining.Free;
+  // PubAck, PubRec, PubRel, PubComp all share the exact same structure
+  WriteMQTTPubXxx(PacketID, ReasonCode, mqptPubComp, %0000);
 end;
 
 function TMQTTStream.ReadVarInt: UInt32;
