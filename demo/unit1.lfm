@@ -1,13 +1,13 @@
 object Form1: TForm1
   AnchorSideRight.Side = asrBottom
   Left = 433
-  Height = 660
+  Height = 720
   Top = 341
   Width = 1024
   Caption = 'MQTT Client Demo'
-  ClientHeight = 660
+  ClientHeight = 720
   ClientWidth = 1024
-  Constraints.MinHeight = 660
+  Constraints.MinHeight = 720
   Constraints.MinWidth = 1024
   OnCreate = FormCreate
   OnDestroy = FormDestroy
@@ -114,7 +114,7 @@ object Form1: TForm1
   inline SynEdit1: TSynEdit
     AnchorSideRight.Control = ButtonConnect
     Left = 16
-    Height = 637
+    Height = 697
     Top = 16
     Width = 675
     BorderSpacing.Right = 85
@@ -708,13 +708,13 @@ object Form1: TForm1
   end
   object ButtonPublish: TButton
     AnchorSideLeft.Control = EditHost
-    AnchorSideTop.Control = EditCorrelData
+    AnchorSideTop.Control = SpinEditQoS
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 551
+    Top = 586
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 4
@@ -791,7 +791,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 32
-    Top = 591
+    Top = 626
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 15
@@ -808,7 +808,7 @@ object Form1: TForm1
     AnchorSideRight.Side = asrBottom
     Left = 776
     Height = 25
-    Top = 628
+    Top = 663
     Width = 238
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Top = 5
@@ -843,5 +843,46 @@ object Form1: TForm1
     BorderSpacing.Top = 3
     TabOrder = 18
     Value = 1
+  end
+  object SpinEditQoS: TSpinEdit
+    AnchorSideLeft.Control = EditHost
+    AnchorSideTop.Control = EditCorrelData
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = EditHost
+    AnchorSideRight.Side = asrBottom
+    Left = 776
+    Height = 32
+    Top = 550
+    Width = 238
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 3
+    MaxValue = 2
+    TabOrder = 19
+  end
+  object LabelQoS: TLabel
+    AnchorSideTop.Control = SpinEditQoS
+    AnchorSideTop.Side = asrCenter
+    AnchorSideRight.Control = SpinEditQoS
+    Left = 747
+    Height = 18
+    Top = 557
+    Width = 26
+    Anchors = [akTop, akRight]
+    BorderSpacing.Right = 3
+    Caption = 'QoS'
+    ParentColor = False
+  end
+  object LabelSubsID: TLabel
+    AnchorSideTop.Control = SpinEditSubID
+    AnchorSideTop.Side = asrCenter
+    AnchorSideRight.Control = SpinEditSubID
+    Left = 712
+    Height = 18
+    Top = 335
+    Width = 61
+    Anchors = [akTop, akRight]
+    BorderSpacing.Right = 3
+    Caption = 'Subscr.-ID'
+    ParentColor = False
   end
 end

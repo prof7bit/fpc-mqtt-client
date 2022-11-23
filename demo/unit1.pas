@@ -30,6 +30,9 @@ type
     EditPort: TLabeledEdit;
     EditID: TLabeledEdit;
     EditTopic: TLabeledEdit;
+    LabelSubsID: TLabel;
+    LabelQoS: TLabel;
+    SpinEditQoS: TSpinEdit;
     SpinEditSubID: TSpinEdit;
     SynEdit1: TSynEdit;
     procedure ButtonConnectClick(Sender: TObject);
@@ -75,6 +78,7 @@ begin
   EditPubMessage.Text := Ini.ReadString('publish', 'message', '');
   EditRespTopic.Text := Ini.ReadString('publish', 'resptopic', '');
   EditCorrelData.Text := Ini.ReadString('publish', 'correldata', '');
+  SpinEditQoS.Value := Ini.ReadInteger('publish', 'QoS', 0);
 
   FClient := TMQTTClient.Create(Self);
   FClient.OnDebug := @Debug;
@@ -118,7 +122,7 @@ end;
 
 procedure TForm1.ButtonDisconnectClick(Sender: TObject);
 begin
-  FClient.Disconect;
+  FClient.Disconnect;
   ComboBoxSubs.Clear;
 end;
 
@@ -130,8 +134,9 @@ begin
   Ini.WriteString('publish', 'message', EditPubMessage.Text);
   Ini.WriteString('publish', 'resptopic', EditRespTopic.Text);
   Ini.WriteString('publish', 'correldata', EditCorrelData.Text);
+  Ini.WriteInteger('publish', 'QoS', SpinEditQoS.Value);
   Res := FClient.Publish(EditPubTopic.Text, EditPubMessage.Text, EditRespTopic.Text,
-    TBytes(EditCorrelData.Text), 2, False);
+    TBytes(EditCorrelData.Text), SpinEditQoS.Value, False);
   if Res <> mqeNoError then
     Debug(Format('publish: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
 end;
