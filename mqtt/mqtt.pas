@@ -780,6 +780,7 @@ var
   UsingAlias: Boolean;
   PubRec: TMQTTQueuedPubRec;
   Duplication: Boolean = False;
+
 begin
   Topic := FTopicAliases.Handle(P.TopicAlias, P.TopicName);
   UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');

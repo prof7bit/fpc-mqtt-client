@@ -45,6 +45,7 @@ type
   private
     FClient: TMQTTClient;
     Ini: TIniFile;
+    FFGCol: TColor;
     procedure Debug(Txt: String);
     procedure OnDisconnect(Client: TMQTTClient);
     procedure OnConnect(Client: TMQTTClient);
@@ -59,6 +60,20 @@ var
   Form1: TForm1;
 
 implementation
+
+function Mix(CA, CB: TColor; Ratio: Byte): TColor;
+var
+  R, G, B: Byte;
+  Ratio_: Byte;
+begin
+  CA := ColorToRGB(CA);
+  CB := ColorToRGB(CB);
+  Ratio_ := 100 - Ratio;
+  R := (Ratio_ * Red(CA)   + Ratio * Red(CB)) div 100;
+  G := (Ratio_ * Green(CA) + Ratio * Green(CB)) div 100;
+  B := (Ratio_ * Blue(CA)  + Ratio * Blue(CB)) div 100;
+  Result := RGBToColor(R, G, B);
+end;
 
 {$R *.lfm}
 
@@ -81,7 +96,7 @@ begin
   SpinEditQoS.Value := Ini.ReadInteger('publish', 'QoS', 0);
 
   FClient := TMQTTClient.Create(Self);
-  FClient.OnDebug := @Debug;
+  FClient.OnDebug := @Debug; // comment this out to save massive CPU
   FClient.OnDisconnect := @OnDisconnect;
   FClient.OnConnect := @OnConnect;
   FClient.OnVerifySSL := @OnVerifySSL;
@@ -96,6 +111,9 @@ begin
   {$else}
   SynEdit1.Font.Name := 'DejaVu Sans Mono';
   {$endif}
+
+  // grey log lines, comment this out if it is too slow
+  FFGCol := Mix(SynEdit1.Color, SynEdit1.Font.Color, 40);
   SynEdit1.OnSpecialLineMarkup := @LogLineColor;
 end;
 
@@ -228,26 +246,11 @@ end;
 procedure TForm1.LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);
 var
   S: String;
-
-  function Mix(CA, CB: TColor; Ratio: Byte): TColor;
-  var
-    R, G, B: Byte;
-    Ratio_: Byte;
-  begin
-    CA := ColorToRGB(CA);
-    CB := ColorToRGB(CB);
-    Ratio_ := 100 - Ratio;
-    R := (Ratio_ * Red(CA)   + Ratio * Red(CB)) div 100;
-    G := (Ratio_ * Green(CA) + Ratio * Green(CB)) div 100;
-    B := (Ratio_ * Blue(CA)  + Ratio * Blue(CB)) div 100;
-    Result := RGBToColor(R, G, B);
-  end;
-
 begin
   S := SynEdit1.Lines[Line - 1];
   if Pos('[', S) = 1 then begin
     Special := True;
-    Markup.Foreground := Mix(SynEdit1.Color, SynEdit1.Font.Color, 40);
+    Markup.Foreground := FFGCol;
     Markup.Background := clNone;
   end;
 end;
