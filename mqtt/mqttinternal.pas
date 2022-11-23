@@ -212,6 +212,9 @@ type
   end;
 
 implementation
+uses
+  syncobjs;
+
 const
   PacketClasses: array[TMQTTPacketType] of CMQTTParsedPacket = (
     TMQTTParsedPacket,  // reserved
@@ -231,6 +234,9 @@ const
     TMQTTDisconnect,
     TMQTTParsedPacket   // auth (fixme, need to implement this)
   );
+
+var
+  WriteLock: TCriticalSection;
 
 { TMQTTParsedPacket }
 
@@ -545,26 +551,31 @@ end;
 
 procedure TMQTTStream.WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
 begin
-  // each packet has a fixed header                             (Ch. 2.1.1)
-  WriteByte((ord(Typ) shl 4) or Flags);
+  WriteLock.Acquire;
+  try
+    // each packet has a fixed header                             (Ch. 2.1.1)
+    WriteByte((ord(Typ) shl 4) or Flags);
 
-  // folowed by a variable header,                              (Ch. 2.2)
-  // and optionally a payload                                   (Ch. 2.3)
+    // folowed by a variable header,                              (Ch. 2.2)
+    // and optionally a payload                                   (Ch. 2.3)
 
-  if Assigned(Remaining) then begin
-    // The second element of the fixed header is a variable int
-    // length field which counts the number of all remaining bytes
-    // until the end of the packet.
-    WriteVarInt(Remaining.Size);  // byte 2..                   (Ch. 2.1.4)
+    if Assigned(Remaining) then begin
+      // The second element of the fixed header is a variable int
+      // length field which counts the number of all remaining bytes
+      // until the end of the packet.
+      WriteVarInt(Remaining.Size);  // byte 2..                   (Ch. 2.1.4)
 
-    // Everything after that variable int field until the end has
-    // already been prepared in the 'Remaining' memory stream object
-    // and we append it here. After this the packet will be complete.
-    Remaining.Seek(0, soBeginning);
-    CopyFrom(Remaining, Remaining.Size);
-  end
-  else
-    WriteVarInt(0); // a packet without data, remaining length = 0
+      // Everything after that variable int field until the end has
+      // already been prepared in the 'Remaining' memory stream object
+      // and we append it here. After this the packet will be complete.
+      Remaining.Seek(0, soBeginning);
+      CopyFrom(Remaining, Remaining.Size);
+    end
+    else
+      WriteVarInt(0); // a packet without data, remaining length = 0
+  finally
+    WriteLock.Release;
+  end;
 end;
 
 procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32);
@@ -898,5 +909,9 @@ begin
   Result := Dest.CopyFrom(Self, Size);
 end;
 
+initialization
+  WriteLock := TCriticalSection.Create;
+finalization
+  WriteLock.Free;
 end.
 
