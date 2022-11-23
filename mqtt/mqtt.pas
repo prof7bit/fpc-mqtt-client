@@ -120,9 +120,9 @@ type
     Txt: String;
   end;
 
-  { TLockComponent }
+  { TMQTTLockComponent }
 
-  TLockComponent = class(TComponent)
+  TMQTTLockComponent = class(TComponent)
   private
     FLock: TCriticalSection;
   public
@@ -134,7 +134,7 @@ type
 
   { TMQTTQueue }
 
-  generic TMQTTQueue<T> = class(TLockComponent)
+  generic TMQTTQueue<T> = class(TMQTTLockComponent)
   private
     FClient: TMQTTClient;
     FName: String;
@@ -178,7 +178,7 @@ type
 
   { TMQTTTopicAliases }
 
-  TMQTTTopicAliases = class(TLockComponent)
+  TMQTTTopicAliases = class(TMQTTLockComponent)
   private
     FList: array of TTopicAlias;
   public
@@ -188,7 +188,7 @@ type
 
   { TMQTTClient }
 
-  TMQTTClient = class(TLockComponent)
+  TMQTTClient = class(TMQTTLockComponent)
   protected
     FListenThread: TMQTTLIstenThread;
     FSocket: TMQTTSocket;
@@ -293,26 +293,26 @@ begin
 end;
 {$endif}
 
-{ TLockComponent }
+{ TMQTTLockComponent }
 
-constructor TLockComponent.Create(AOwner: TComponent);
+constructor TMQTTLockComponent.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FLock := TCriticalSection.Create;
 end;
 
-destructor TLockComponent.Destroy;
+destructor TMQTTLockComponent.Destroy;
 begin
   FLock.Free;
   inherited Destroy;
 end;
 
-procedure TLockComponent.Lock;
+procedure TMQTTLockComponent.Lock;
 begin
   FLock.Acquire;
 end;
 
-procedure TLockComponent.Unlock;
+procedure TMQTTLockComponent.Unlock;
 begin
   FLock.Release;
 end;
