@@ -556,7 +556,7 @@ begin
     // each packet has a fixed header                             (Ch. 2.1.1)
     WriteByte((ord(Typ) shl 4) or Flags);
 
-    // folowed by a variable header,                              (Ch. 2.2)
+    // followed by a variable header,                             (Ch. 2.2)
     // and optionally a payload                                   (Ch. 2.3)
 
     if Assigned(Remaining) then begin
