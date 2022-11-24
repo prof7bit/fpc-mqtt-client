@@ -236,11 +236,18 @@ end;
 procedure TForm1.Debug(Txt: String);
 var
   Lines: array of String;
-  Line: String;
+  Line, Line1: String;
 begin
   Lines := Txt.Split(LineEnding);
-  for Line in Lines do
-    SynEdit1.Append(Line);
+  for Line in Lines do begin
+    // cut long lines
+    if Length(Line) > 1024 then begin
+      Line1 := LeftStr(Line, 1024);
+      SynEdit1.Append(Line1);
+    end
+    else
+      SynEdit1.Append(Line);
+  end;
   SynEdit1.ExecuteCommand(ecEditorBottom, #0, nil);
   SynEdit1.ExecuteCommand(ecLineStart, #0, nil);
 end;

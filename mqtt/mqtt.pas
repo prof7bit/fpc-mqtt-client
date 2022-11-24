@@ -39,9 +39,10 @@ uses
   sslsockets, openssl, opensslsockets;
 
 const
-  MQTTDefaultKeepalive: UInt16        = 50; // seconds
-  MQTTDefaultSessionExpiry: UInt32    = 60 * 60; // seconds
-  MQTTPingTimeout: UInt16             = 10; // seconds
+  MQTTDefaultKeepalive: UInt16        = 50;       // seconds
+  MQTTDefaultSessionExpiry: UInt32    = 60 * 60;  // seconds
+  MQTTPingTimeout: UInt16             = 10;       // seconds
+  MQTTMaxRxPacketSize                 = 65535;    // bytes (max: $ffffffff)
 
   // constants based on TDateTime (1 day = 1)
   HOUR = 1 / 24;
@@ -981,7 +982,7 @@ begin
     FKeepalive := MQTTDefaultKeepalive;
     FSessionExpiry := MQTTDefaultSessionExpiry;
     Debug('-> connect');
-    FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive, CleanStart, FSessionExpiry);
+    FSocket.WriteMQTTConnect(ID, User, Pass, FKeepalive, CleanStart, FSessionExpiry, MQTTMaxRxPacketSize);
     FLastPing := Now;
   end;
 end;

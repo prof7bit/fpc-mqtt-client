@@ -194,7 +194,7 @@ type
     procedure WriteMQTTString(X: UTF8String);
     procedure WriteMQTTBin(X: TBytes);
     procedure WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
-    procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32);
+    procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32; MaxPacketSize: UInt32);
     procedure WriteMQTTPingReq;
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
     procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean);
@@ -581,7 +581,7 @@ begin
   end;
 end;
 
-procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32);
+procedure TMQTTStream.WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32; MaxPacketSize: UInt32);
 type
   TConnectFlag = (          // Ch. 3.1.2.3
     cfReserved0   = 0,
@@ -615,6 +615,10 @@ begin
       if SessionExpiry > 0 then begin
         WriteByte(17);                        // Session Expiry   (Ch. 3.1.2.11.2)
         WriteInt32Big(SessionExpiry);
+      end;
+      if MaxPacketSize > 0 then begin
+        WriteByte(39);                        // Max Packet Size  (Ch. 3.1.9.11.4)
+        WriteInt32Big(MaxPacketSize);
       end;
       WriteByte(34);                          // Topic Alias Max  (Ch. 3.1.2.11.5)
       WriteInt16Big($ffff);
