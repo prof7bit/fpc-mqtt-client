@@ -953,6 +953,8 @@ begin
     Disconnect;
   FListenThread.WaitFor;
   FListenThread.Free;
+  FRXQueue.Clear;
+  FDebugQueue.Clear;
   FreeAndNil(FListenWake);
   inherited Destroy;
 end;
