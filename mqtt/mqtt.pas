@@ -221,7 +221,7 @@ type
     FUserName: String;
     FPassword: String;
     FUseSSL: Boolean;
-    procedure DebugSync;
+    procedure DebugPop;
     procedure Debug(Txt: String);
     procedure Debug(Txt: String; Args: array of const);
     procedure PushOnDisconnect;
@@ -595,12 +595,12 @@ end;
 
 { TMQTTClient }
 
-procedure TMQTTClient.DebugSync;
+procedure TMQTTClient.DebugPop;
 var
   Msg: TMQTTQueuedDebugMsg;
 begin
   if Assigned(FOnDebug) then
-    while FDebugQueue.Pop(Msg) do
+    if FDebugQueue.Pop(Msg) then
       FOnDebug(Msg.Txt);
 end;
 
@@ -612,7 +612,7 @@ begin
     exit;
   Msg.Txt := '[mqtt debug] ' + Txt;
   FDebugQueue.Push(Msg);
-  TThread.Synchronize(nil, @DebugSync);
+  TThread.Queue(nil, @DebugPop);
 end;
 
 procedure TMQTTClient.Debug(Txt: String; Args: array of const);
