@@ -74,11 +74,21 @@ type
     mqwrError
   );
 
+  TMQTTRXData = record
+    ID: UInt16;
+    Topic: String;
+    Message: String;
+    RespTopic: String;
+    CorrelData: TBytes;
+    SubsID: UInt16;
+    QoS: Byte;
+  end;
+
   TMQTTClient = class;
   TMQTTDebugFunc = procedure(Txt: String) of object;
   TMQTTConnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTDisconnectFunc = procedure(AClient: TMQTTClient) of object;
-  TMQTTReceiveFunc = procedure(AClient: TMQTTClient; Topic, Message, ResponseTopic: String; CorrelData: TBytes; SubsID: UInt32; PacketID: Uint16; QoS: Byte) of object;
+  TMQTTReceiveFunc = procedure(AClient: TMQTTClient; Msg: TMQTTRXData) of object;
   TMQTTVerifySSLFunc = procedure(AClient: TMQTTClient; ASSLHandler: TOpenSSLSocketHandler; var Allow: Boolean) of object;
 
   TTopicAlias = record
@@ -87,16 +97,6 @@ type
   end;
 
   TSubscriptionIDs = array of UInt32;
-
-  TMQTTRXData = record
-    ID: UInt16;
-    Topic: String;
-    Message: String;
-    RespTopic: String;
-    CorrelData: TBytes;
-    SubscriptionIDs: TSubscriptionIDs;
-    QoS: Byte;
-  end;
 
   TMQTTQueuedPublish = record
     ID: UInt16;
@@ -650,33 +650,39 @@ end;
 procedure TMQTTClient.PushOnRX(P: TMQTTPublish);
 var
   Data: TMQTTRXData;
+  ID: UInt16;
+
+  procedure Push(ASubsID: UInt16);
+  begin
+    Data.ID := P.PacketID;
+    Data.SubsID := ASubsID;
+    Data.Topic := P.TopicName;
+    Data.Message := P.Message;
+    Data.RespTopic := P.RespTopic;
+    Data.CorrelData := P.CorrelData;
+    Data.QoS := P.QoS;
+    FRXQueue.Push(Data);
+    TThread.Queue(nil, @popOnRX);
+  end;
+
 begin
-  Data.ID := P.PacketID;
-  Data.Topic := P.TopicName;
-  Data.Message := P.Message;
-  Data.RespTopic := P.RespTopic;
-  Data.CorrelData := P.CorrelData;
-  Data.SubscriptionIDs := P.SubscriptionID;
-  Data.QoS := P.QoS;
-  FRXQueue.Push(Data);
-  TThread.Queue(nil, @popOnRX);
+  if Length(P.SubscriptionID) = 0 then begin
+    Push(0);
+  end
+  else begin
+    for ID in P.SubscriptionID do begin
+      Push(ID);
+    end;
+  end;
 end;
 
 procedure TMQTTClient.popOnRX;
 var
   Data: TMQTTRXData;
-  ID: Uint32;
 begin
   if FRXQueue.Pop(Data) then begin
     if Assigned(FOnReceive) then begin
-      if Length(Data.SubscriptionIDs) = 0 then begin
-        FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, 0, Data.ID, Data.QoS);
-      end
-      else begin
-        for ID in Data.SubscriptionIDs do begin
-          FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, ID, Data.ID, Data.QoS);
-        end;
-      end;
+      FOnReceive(Self, Data);
     end;
   end;
 end;

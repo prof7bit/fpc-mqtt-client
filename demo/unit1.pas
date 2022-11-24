@@ -54,7 +54,7 @@ type
     procedure Debug(Txt: String);
     procedure OnDisconnect(Client: TMQTTClient);
     procedure OnConnect(Client: TMQTTClient);
-    procedure OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; SubsID: UInt32; PackID: Uint16; QoS: Byte);
+    procedure OnReceive(Client: TMQTTClient; Msg: TMQTTRXData);
     procedure OnVerifySSL(Clinet: TMQTTClient; Handler: TOpenSSLSocketHandler; var Allow: Boolean);
     procedure LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);
   public
@@ -255,17 +255,18 @@ begin
   Debug('OnConnect');
 end;
 
-procedure TForm1.OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; SubsID: UInt32; PackID: Uint16; QoS: Byte);
+procedure TForm1.OnReceive(Client: TMQTTClient; Msg: TMQTTRXData);
 var
   B: Byte;
   S: String;
 begin
-  Debug(Format('OnReceive: QoS %d %d %d %s = %s', [QoS, SubsID, PackID, Topic, Message]));
-  if RespTopic <> '' then
-    Debug(Format('OnReceive: Response Topic: %s', [RespTopic]));
-  if Length(CorrelData) > 0 then begin
+  Debug(Format('OnReceive: QoS %d %d %d %s = %s',
+    [Msg.QoS, Msg.SubsID, Msg.ID, Msg.Topic, Msg.Message]));
+  if Msg.RespTopic <> '' then
+    Debug(Format('OnReceive: Response Topic: %s', [Msg.RespTopic]));
+  if Length(Msg.CorrelData) > 0 then begin
     S := '';
-    for B in CorrelData do
+    for B in Msg.CorrelData do
       S += IntToHex(B, 2) + ' ';
     Debug(Format('OnReceive: Correlation Data: %s', [S]));
   end;
