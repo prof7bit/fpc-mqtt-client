@@ -18,6 +18,7 @@ type
     ButtonSubscribe: TButton;
     ButtonDisconnect: TButton;
     ButtonPublish: TButton;
+    CheckBoxDebug: TCheckBox;
     CheckBoxSSL: TCheckBox;
     ComboBoxSubs: TComboBox;
     EditRespTopic: TLabeledEdit;
@@ -40,8 +41,12 @@ type
     procedure ButtonPublishClick(Sender: TObject);
     procedure ButtonSubscribeClick(Sender: TObject);
     procedure ButtonUnsubscribeClick(Sender: TObject);
+    procedure CheckBoxDebugChange(Sender: TObject);
+    procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure FormResize(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
     FClient: TMQTTClient;
     Ini: TIniFile;
@@ -49,7 +54,7 @@ type
     procedure Debug(Txt: String);
     procedure OnDisconnect(Client: TMQTTClient);
     procedure OnConnect(Client: TMQTTClient);
-    procedure OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; ID: UInt32);
+    procedure OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; SubsID: UInt32; PackID: Uint16; QoS: Byte);
     procedure OnVerifySSL(Clinet: TMQTTClient; Handler: TOpenSSLSocketHandler; var Allow: Boolean);
     procedure LogLineColor(Sender: TObject; Line: integer; var Special: boolean; Markup: TSynSelectedColor);
   public
@@ -82,21 +87,9 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   Ini := TIniFile.Create('mqtt.ini');
-  EditHost.Text := Ini.ReadString('server', 'host', '');
-  EditPort.Text := Ini.ReadString('server', 'port', '');
-  EditID.Text := Ini.ReadString('server', 'id', '');
-  EditUser.Text := Ini.ReadString('server', 'user', '');
-  EditPass.Text := Ini.ReadString('server', 'pass', '');
-  CheckBoxSSL.Checked := Ini.ReadBool('server', 'ssl', False);
-  EditTopic.Text := Ini.ReadString('subscribe', 'topic', '');
-  EditPubTopic.Text := Ini.ReadString('publish', 'topic', '');
-  EditPubMessage.Text := Ini.ReadString('publish', 'message', '');
-  EditRespTopic.Text := Ini.ReadString('publish', 'resptopic', '');
-  EditCorrelData.Text := Ini.ReadString('publish', 'correldata', '');
-  SpinEditQoS.Value := Ini.ReadInteger('publish', 'QoS', 0);
-
   FClient := TMQTTClient.Create(Self);
-  FClient.OnDebug := @Debug; // comment this out to save massive CPU
+  if CheckBoxDebug.Checked then
+    FClient.OnDebug := @Debug;
   FClient.OnDisconnect := @OnDisconnect;
   FClient.OnConnect := @OnConnect;
   FClient.OnVerifySSL := @OnVerifySSL;
@@ -112,7 +105,6 @@ begin
   SynEdit1.Font.Name := 'DejaVu Sans Mono';
   {$endif}
 
-  // grey log lines, comment this out if it is too slow
   FFGCol := Mix(SynEdit1.Color, SynEdit1.Font.Color, 40);
   SynEdit1.OnSpecialLineMarkup := @LogLineColor;
 end;
@@ -120,6 +112,32 @@ end;
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   Ini.Free;
+end;
+
+procedure TForm1.FormResize(Sender: TObject);
+begin
+end;
+
+procedure TForm1.FormShow(Sender: TObject);
+begin
+  EditHost.Text := Ini.ReadString('server', 'host', '');
+  EditPort.Text := Ini.ReadString('server', 'port', '');
+  EditID.Text := Ini.ReadString('server', 'id', '');
+  EditUser.Text := Ini.ReadString('server', 'user', '');
+  EditPass.Text := Ini.ReadString('server', 'pass', '');
+  CheckBoxSSL.Checked := Ini.ReadBool('server', 'ssl', False);
+  EditTopic.Text := Ini.ReadString('subscribe', 'topic', '');
+  EditPubTopic.Text := Ini.ReadString('publish', 'topic', '');
+  EditPubMessage.Text := Ini.ReadString('publish', 'message', '');
+  EditRespTopic.Text := Ini.ReadString('publish', 'resptopic', '');
+  EditCorrelData.Text := Ini.ReadString('publish', 'correldata', '');
+  SpinEditQoS.Value := Ini.ReadInteger('publish', 'QoS', 0);
+  CheckBoxDebug.Checked := Ini.ReadBool('ui', 'show_debug', True);
+
+  Left := Ini.ReadInteger('ui', 'win_left', Left);
+  Top := Ini.ReadInteger('ui', 'win_top', Top);
+  Width := Ini.ReadInteger('ui', 'win_width', Width);
+  Height := Ini.ReadInteger('ui', 'win_height', Height);
 end;
 
 procedure TForm1.ButtonConnectClick(Sender: TObject);
@@ -139,8 +157,12 @@ begin
 end;
 
 procedure TForm1.ButtonDisconnectClick(Sender: TObject);
+var
+  Res: TMQTTError;
 begin
-  FClient.Disconnect;
+  Res := FClient.Disconnect;
+  if Res <> mqeNoError then
+    Debug(Format('disconnect: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
   ComboBoxSubs.Clear;
 end;
 
@@ -193,6 +215,24 @@ begin
       Debug(Format('unsubscribe: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));  end;
 end;
 
+procedure TForm1.CheckBoxDebugChange(Sender: TObject);
+begin
+  Ini.WriteBool('ui', 'show_debug', CheckBoxDebug.Checked);
+  if Assigned(FClient) then
+    if CheckBoxDebug.Checked then
+      FClient.OnDebug := @Debug
+    else
+      FClient.OnDebug := nil;
+end;
+
+procedure TForm1.FormClose(Sender: TObject; var CloseAction: TCloseAction);
+begin
+  Ini.WriteInteger('ui', 'win_left', Left);
+  Ini.WriteInteger('ui', 'win_top', Top);
+  Ini.WriteInteger('ui', 'win_width', Width);
+  Ini.WriteInteger('ui', 'win_height', Height);
+end;
+
 procedure TForm1.Debug(Txt: String);
 var
   Lines: array of String;
@@ -215,12 +255,12 @@ begin
   Debug('OnConnect');
 end;
 
-procedure TForm1.OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; ID: UInt32);
+procedure TForm1.OnReceive(Client: TMQTTClient; Topic, Message, RespTopic: String; CorrelData: TBytes; SubsID: UInt32; PackID: Uint16; QoS: Byte);
 var
   B: Byte;
   S: String;
 begin
-  Debug(Format('OnReceive: ID:%d, %s = %s', [ID, Topic, Message]));
+  Debug(Format('OnReceive: QoS %d %d %d %s = %s', [QoS, SubsID, PackID, Topic, Message]));
   if RespTopic <> '' then
     Debug(Format('OnReceive: Response Topic: %s', [RespTopic]));
   if Length(CorrelData) > 0 then begin

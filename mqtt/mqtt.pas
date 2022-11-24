@@ -78,7 +78,7 @@ type
   TMQTTDebugFunc = procedure(Txt: String) of object;
   TMQTTConnectFunc = procedure(AClient: TMQTTClient) of object;
   TMQTTDisconnectFunc = procedure(AClient: TMQTTClient) of object;
-  TMQTTReceiveFunc = procedure(AClient: TMQTTClient; ATopic, AMessage, AResponseTopic: String; ACorrelData: TBytes; ASubID: UInt32) of object;
+  TMQTTReceiveFunc = procedure(AClient: TMQTTClient; Topic, Message, ResponseTopic: String; CorrelData: TBytes; SubsID: UInt32; PacketID: Uint16; QoS: Byte) of object;
   TMQTTVerifySSLFunc = procedure(AClient: TMQTTClient; ASSLHandler: TOpenSSLSocketHandler; var Allow: Boolean) of object;
 
   TTopicAlias = record
@@ -95,6 +95,7 @@ type
     RespTopic: String;
     CorrelData: TBytes;
     SubscriptionIDs: TSubscriptionIDs;
+    QoS: Byte;
   end;
 
   TMQTTQueuedPublish = record
@@ -228,7 +229,7 @@ type
     procedure PopOnDisconnect;
     procedure PushOnConnect;
     procedure PopOnConnect;
-    procedure PushOnRX(PacketID: UInt16; Topic, Message, RespTopic: String; CorrelData: TBytes; SubIDs: TSubscriptionIDs);
+    procedure PushOnRX(P: TMQTTPublish);
     procedure popOnRX;
     procedure OnTimer(Sender: TObject);
     procedure Handle(P: TMQTTConnAck);
@@ -646,16 +647,17 @@ begin
     FOnConnect(self);
 end;
 
-procedure TMQTTClient.PushOnRX(PacketID: UInt16; Topic, Message, RespTopic: String; CorrelData: TBytes; SubIDs: TSubscriptionIDs);
+procedure TMQTTClient.PushOnRX(P: TMQTTPublish);
 var
   Data: TMQTTRXData;
 begin
-  Data.ID := PacketID;
-  Data.Topic := Topic;
-  Data.Message := Message;
-  Data.RespTopic := RespTopic;
-  Data.CorrelData := CorrelData;
-  Data.SubscriptionIDs := SubIDs;
+  Data.ID := P.PacketID;
+  Data.Topic := P.TopicName;
+  Data.Message := P.Message;
+  Data.RespTopic := P.RespTopic;
+  Data.CorrelData := P.CorrelData;
+  Data.SubscriptionIDs := P.SubscriptionID;
+  Data.QoS := P.QoS;
   FRXQueue.Push(Data);
   TThread.Queue(nil, @popOnRX);
 end;
@@ -668,11 +670,11 @@ begin
   if FRXQueue.Pop(Data) then begin
     if Assigned(FOnReceive) then begin
       if Length(Data.SubscriptionIDs) = 0 then begin
-        FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, 0)
+        FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, 0, Data.ID, Data.QoS);
       end
       else begin
         for ID in Data.SubscriptionIDs do begin
-          FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, ID);
+          FOnReceive(Self, Data.Topic, Data.Message, Data.RespTopic, Data.CorrelData, ID, Data.ID, Data.QoS);
         end;
       end;
     end;
@@ -776,16 +778,15 @@ end;
 
 procedure TMQTTClient.Handle(P: TMQTTPublish);
 var
-  Topic: String;
   UsingAlias: Boolean;
   PubRec: TMQTTQueuedPubRec;
   Duplication: Boolean = False;
 
 begin
-  Topic := FTopicAliases.Handle(P.TopicAlias, P.TopicName);
   UsingAlias := (P.TopicAlias > 0) and (P.TopicName = '');
+  P.TopicName := FTopicAliases.Handle(P.TopicAlias, P.TopicName);
   Debug('<- publish, PacketID: %d, alias: %s, QoS: %d, topic: %s, message: %s',
-   [P.PacketID, BoolToStr(UsingAlias, 'yes', 'no'), P.QoS, Topic, P.Message]);
+   [P.PacketID, BoolToStr(UsingAlias, 'yes', 'no'), P.QoS, P.TopicName, P.Message]);
 
   // prevent duplication in QoS 2
   if (P.QoS = 2) and FQueuedPubRec.Contains(P.PacketID) then begin
@@ -794,7 +795,7 @@ begin
   end;
 
   if not Duplication then
-    PushOnRX(P.PacketID, Topic, P.Message, P.RespTopic, P.CorrelData, P.SubscriptionID);
+    PushOnRX(P);
 
   if P.QoS = 1 then begin
     Debug('-> puback, PacketID %d', [P.PacketID]);
