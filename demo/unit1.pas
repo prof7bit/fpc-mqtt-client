@@ -185,7 +185,7 @@ begin
   ID := SpinEditSubID.Value;
   if ID > 0 then
     SpinEditSubID.Value := ID + 1;
-  Res := FClient.Subscribe(EditTopic.Text, ID);
+  Res := FClient.Subscribe(EditTopic.Text, 2, ID);
   if Res <> mqeNoError then
     Debug(Format('subscribe: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]))
   else begin

@@ -250,8 +250,8 @@ type
     destructor Destroy; override;
     function Connect(Host: String; Port: Word; ID, User, Pass: String; SSL, CleanStart: Boolean): TMQTTError;
     function Disconnect: TMQTTError;
-    function Subscribe(ATopicFilter: String; ASubsID: UInt32=0): TMQTTError;
-    function Unsubscribe(ATopicFilter: String): TMQTTError;
+    function Subscribe(TopicFilter: String; QoS: Byte; SubsID: UInt32): TMQTTError;
+    function Unsubscribe(TopicFilter: String): TMQTTError;
     function Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
     function Connected: Boolean;
     property RetainAvail: Boolean read FRetainAvail;
@@ -1003,13 +1003,13 @@ begin
   Result := mqeNoError;
 end;
 
-function TMQTTClient.Subscribe(ATopicFilter: String; ASubsID: UInt32): TMQTTError;
+function TMQTTClient.Subscribe(TopicFilter: String; QoS: Byte; SubsID: UInt32): TMQTTError;
 begin
   Result := mqeNoError;
   if not Connected then
     exit(mqeNotConnected);
 
-  if ASubsID >= $0fffffff {Ch. 3.8.2.1.2} then
+  if SubsID >= $0fffffff {Ch. 3.8.2.1.2} then
     exit(mqeInvalidSubscriptionID);
 
   // if the subscription ID is 0 then it will send a packet without ID
@@ -1017,19 +1017,19 @@ begin
   // then also consequentky call the OnReceive handler with ID set to 0.
   // So the app can entirely ignore all this subscription ID business by
   // always using ID = 0 and it will work like in older protocol versions.
-  Debug('-> subscribe, topic %s, SubsID %d', [ATopicFilter, ASubsID]);
-  FSocket.WriteMQTTSubscribe(ATopicFilter, GetNewPacketID, ASubsID);
+  Debug('-> subscribe, topic %s, SubsID %d', [TopicFilter, SubsID]);
+  FSocket.WriteMQTTSubscribe(TopicFilter, GetNewPacketID, QoS, SubsID);
 end;
 
-function TMQTTClient.Unsubscribe(ATopicFilter: String): TMQTTError;
+function TMQTTClient.Unsubscribe(TopicFilter: String): TMQTTError;
 begin
   Result := mqeNoError;
   if not connected then
     exit(mqeNotConnected);
 
-  if ATopicFilter <> '' then begin
-    Debug('-> unsubscribe, topic %s', [ATopicFilter]);
-    FSocket.WriteMQTTUnsubscribe(ATopicFilter, GetNewPacketID);
+  if TopicFilter <> '' then begin
+    Debug('-> unsubscribe, topic %s', [TopicFilter]);
+    FSocket.WriteMQTTUnsubscribe(TopicFilter, GetNewPacketID);
   end
   else
     Exit(mqeInvalidTopicFilter);

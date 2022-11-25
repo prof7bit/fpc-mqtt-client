@@ -196,7 +196,7 @@ type
     procedure WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32; MaxPacketSize: UInt32);
     procedure WriteMQTTPingReq;
-    procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
+    procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; QoS: Byte; SubsID: UInt32);
     procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean);
     procedure WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
     procedure WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
@@ -650,7 +650,7 @@ begin
   WriteMQTTPacket(mqptPingReq, 0, nil);
 end;
 
-procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16; SubsID: UInt32);
+procedure TMQTTStream.WriteMQTTSubscribe(Topic: String; PacketID: UInt16; QoS: Byte; SubsID: UInt32);
 var
   Remaining: TMemoryStream;
   SubsOpt: Byte;
@@ -674,7 +674,7 @@ begin
     // end props
 
     // begin payload
-    SubsOpt := %00000010;                     // max QoS = 2
+    SubsOpt := %00000000 or QoS;
     WriteMQTTString(Topic);                   //                  (Ch. 3.8.3)
     WriteByte(SubsOpt);                       // subscr. opt      (Ch. 3.8.3.1)
     // end payload
