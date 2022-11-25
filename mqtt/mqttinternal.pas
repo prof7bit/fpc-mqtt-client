@@ -69,6 +69,8 @@ type
     Val: UTF8String;
   end;
 
+  TMQTTStringPairArray = array of TMQTTStringPair;
+
   { TMQTTParsedPacket }
 
   TMQTTParsedPacket = class

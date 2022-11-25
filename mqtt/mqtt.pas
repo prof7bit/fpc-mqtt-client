@@ -31,6 +31,7 @@ unit mqtt;
 
 {$mode ObjFPC}{$H+}
 {$ModeSwitch arrayoperators}
+{$modeswitch advancedrecords}
 
 interface
 
@@ -75,6 +76,25 @@ type
     mqwrError
   );
 
+  { TMQTTUserProperties }
+
+  TMQTTUserProperties = record
+  private
+    Data: TMQTTStringPairArray;
+  public
+    procedure Init(Arr: TMQTTStringPairArray);
+    procedure Init(Arr: array of String);
+    function GetArray: TMQTTStringPairArray;
+    procedure SetVal(Key, Val: String);
+    function GetVal(Key: String; out Val: String): Boolean;
+    function GetKey(I: Integer): String;
+    function GetVal(I: Integer): String;
+    function HasKey(Key: String): Boolean;
+    procedure Remove(Key: String);
+    procedure Clear;
+    function Count: Integer;
+  end;
+
   TMQTTRXData = record
     ID: UInt16;
     Topic: String;
@@ -83,6 +103,7 @@ type
     CorrelData: TBytes;
     SubsID: UInt16;
     QoS: Byte;
+    UserProps: TMQTTUserProperties;
   end;
 
   TMQTTClient = class;
@@ -294,6 +315,107 @@ begin
   Result := LongInt(FD_ISSET(fdno, nset));
 end;
 {$endif}
+
+{ TMQTTUserProperties }
+
+procedure TMQTTUserProperties.Init(Arr: TMQTTStringPairArray);
+begin
+  Data := Arr;
+end;
+
+procedure TMQTTUserProperties.Init(Arr: array of String);
+var
+  I: Integer = 0;
+  SP: TMQTTStringPair;
+begin
+  if Length(Arr) mod 2 > 0 then
+    raise Exception.Create('passed odd number of elements to user properties constructor');
+  Data := [];
+  while I < Length(Arr) do begin
+    SP.Key := Arr[I];
+    SP.Val := Arr[I + 1];
+    Data += [SP];
+    I += 2;
+  end;
+end;
+
+function TMQTTUserProperties.GetArray: TMQTTStringPairArray;
+begin
+  Result := Data;
+end;
+
+procedure TMQTTUserProperties.SetVal(Key, Val: String);
+var
+  I: Integer;
+  SP: TMQTTStringPair;
+begin
+  for I := 0 to Length(Data) - 1 do begin
+    if Data[I].Key = Key then begin
+      Data[I].Val := Val;
+      exit;
+    end;
+  end;
+  SP.Key := Key;
+  SP.Val := Val;
+  Data += [SP];
+end;
+
+function TMQTTUserProperties.GetVal(Key: String; out Val: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 0 to Length(Data) - 1 do begin
+    if Data[I].Key = Key then begin
+      Val := Data[I].Val;
+      exit(True);
+    end;
+  end;
+end;
+
+function TMQTTUserProperties.GetKey(I: Integer): String;
+begin
+  if I < Length(Data) then
+    Result := Data[I].Key;
+end;
+
+function TMQTTUserProperties.GetVal(I: Integer): String;
+begin
+  if I < Length(Data) then
+    Result := Data[I].Val;
+end;
+
+function TMQTTUserProperties.HasKey(Key: String): Boolean;
+var
+  SP: TMQTTStringPair;
+begin
+  Result := False;
+  for SP in Data do
+    if SP.Key = Key then
+      exit(True);
+end;
+
+procedure TMQTTUserProperties.Remove(Key: String);
+var
+  I: Integer;
+begin
+  for I := 0 to Length(Data) - 1 do begin
+    if Data[I].Key = Key then begin
+      Delete(Data, I, 1);
+      exit;
+    end;
+  end;
+end;
+
+procedure TMQTTUserProperties.Clear;
+begin
+  Init([]);
+end;
+
+function TMQTTUserProperties.Count: Integer;
+begin
+  Result := Length(Data);
+end;
 
 { TMQTTLockComponent }
 
@@ -662,6 +784,7 @@ var
     Data.RespTopic := P.RespTopic;
     Data.CorrelData := P.CorrelData;
     Data.QoS := P.QoS;
+    Data.UserProps.Init(P.UserProperty);
     FRXQueue.Push(Data);
     TThread.Queue(nil, @popOnRX);
   end;
