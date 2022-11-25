@@ -164,14 +164,22 @@ end;
 procedure TForm1.ButtonPublishClick(Sender: TObject);
 var
   Res: TMQTTError;
+  UserProps: TMQTTUserProperties;
 begin
   Ini.WriteString('publish', 'topic', EditPubTopic.Text);
   Ini.WriteString('publish', 'message', EditPubMessage.Text);
   Ini.WriteString('publish', 'resptopic', EditRespTopic.Text);
   Ini.WriteString('publish', 'correldata', EditCorrelData.Text);
   Ini.WriteInteger('publish', 'QoS', SpinEditQoS.Value);
+
+  // set whatever props you need or leave it out and ignore this feature
+  UserProps.Clear;
+  UserProps.SetVal('client-software', 'prof7bit/fpc-mqtt-client');
+  UserProps.SetVal('Content-Type', 'text/plain; charset=utf-8');
+
   Res := FClient.Publish(EditPubTopic.Text, EditPubMessage.Text, EditRespTopic.Text,
-    TBytes(EditCorrelData.Text), SpinEditQoS.Value, False);
+    TBytes(EditCorrelData.Text), SpinEditQoS.Value, False, UserProps);
+
   if Res <> mqeNoError then
     Debug(Format('publish: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
 end;
@@ -261,16 +269,24 @@ procedure TForm1.OnReceive(Client: TMQTTClient; Msg: TMQTTRXData);
 var
   B: Byte;
   S: String;
+  I: Integer;
 begin
   Debug(Format('OnReceive: QoS %d %d %d %s = %s',
     [Msg.QoS, Msg.SubsID, Msg.ID, Msg.Topic, Msg.Message]));
   if Msg.RespTopic <> '' then
-    Debug(Format('OnReceive: Response Topic: %s', [Msg.RespTopic]));
+    Debug(Format('           Response Topic: %s', [Msg.RespTopic]));
   if Length(Msg.CorrelData) > 0 then begin
     S := '';
     for B in Msg.CorrelData do
       S += IntToHex(B, 2) + ' ';
-    Debug(Format('OnReceive: Correlation Data: %s', [S]));
+    Debug(Format('           Correlation Data: %s', [S]));
+  end;
+  with Msg.UserProps do begin
+    if Count > 0 then begin
+      for I := 0 to Count - 1 do begin
+        Debug(Format('           Prop %s: %s', [GetKey(I), GetVal(I)]));
+      end;
+    end;
   end;
 end;
 

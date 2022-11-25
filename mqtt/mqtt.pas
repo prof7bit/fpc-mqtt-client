@@ -128,6 +128,7 @@ type
     CorrelData: TBytes;
     QoS: Byte;
     Retain: Boolean;
+    UserProps: TMQTTStringPairArray;
   end;
 
   TMQTTQueuedPubRel = record
@@ -273,7 +274,9 @@ type
     function Disconnect: TMQTTError;
     function Subscribe(TopicFilter: String; QoS: Byte; SubsID: UInt32): TMQTTError;
     function Unsubscribe(TopicFilter: String): TMQTTError;
+    function Publish(Topic, Message: String; QoS: Byte; Retain: Boolean): TMQTTError;
     function Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
+    function Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean; UserProps: TMQTTUserProperties): TMQTTError;
     function Connected: Boolean;
     property RetainAvail: Boolean read FRetainAvail;
     property MaxQoS: Byte read FMaxQos;
@@ -854,7 +857,7 @@ begin
       for I := 0 to FQueuedPublish.Count - 1 do begin
         QPublish := FQueuedPublish.Get(I);
         Debug('-> publish (unacked), PacketID %d', [QPublish.ID]);
-        FSocket.WriteMQTTPublish(QPublish.Topic, QPublish.Message, QPublish.ResponseTopic, QPublish.CorrelData, QPublish.ID, QPublish.QoS, QPublish.Retain, True);
+        FSocket.WriteMQTTPublish(QPublish.Topic, QPublish.Message, QPublish.ResponseTopic, QPublish.CorrelData, QPublish.ID, QPublish.QoS, QPublish.Retain, True, QPublish.UserProps);
       end;
     finally
       FQueuedPublish.Unlock;
@@ -1158,7 +1161,20 @@ begin
     Exit(mqeInvalidTopicFilter);
 end;
 
+function TMQTTClient.Publish(Topic, Message: String; QoS: Byte; Retain: Boolean): TMQTTError;
+begin
+  Result := Publish(Topic, Message, '', [], QoS, Retain);
+end;
+
 function TMQTTClient.Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
+var
+  UP: TMQTTUserProperties;
+begin
+  UP.Clear;
+  Result := Publish(Topic, Message, ResponseTopic, CorrelData, QoS, Retain, UP);
+end;
+
+function TMQTTClient.Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean; UserProps: TMQTTUserProperties): TMQTTError;
 var
   PacketID: UInt16;
   M: TMQTTQueuedPublish;
@@ -1182,10 +1198,11 @@ begin
     M.CorrelData := CorrelData;
     M.QoS := QoS;
     M.Retain := Retain;
+    M.UserProps := UserProps.GetArray;
     FQueuedPublish.Push(M);
   end;
   Debug('-> publish, PacketID %d', [PacketID]);
-  FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, PacketID, QoS, Retain, False);
+  FSocket.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData, PacketID, QoS, Retain, False, UserProps.GetArray);
 end;
 
 function TMQTTClient.Connected: Boolean;

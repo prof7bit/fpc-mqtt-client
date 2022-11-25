@@ -195,11 +195,12 @@ type
     procedure WriteInt32Big(X: UInt32);
     procedure WriteMQTTString(X: UTF8String);
     procedure WriteMQTTBin(X: TBytes);
+    procedure WriteMQTTStringPair(SP: TMQTTStringPair);
     procedure WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32; MaxPacketSize: UInt32);
     procedure WriteMQTTPingReq;
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; QoS: Byte; SubsID: UInt32);
-    procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean);
+    procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean; UserProps: TMQTTStringPairArray);
     procedure WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
     procedure WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
     procedure WriteMQTTPubRec(PacketID: UInt16; ReasonCode: Byte);
@@ -554,6 +555,12 @@ begin
   WriteBuffer(X[0], L);
 end;
 
+procedure TMQTTStream.WriteMQTTStringPair(SP: TMQTTStringPair);
+begin
+  WriteMQTTString(SP.Key);
+  WriteMQTTString(SP.Val);
+end;
+
 procedure TMQTTStream.WriteMQTTPacket(Typ: TMQTTPacketType; Flags: Byte; Remaining: TMemoryStream);
 begin
   WriteLock.Acquire;
@@ -687,10 +694,12 @@ begin
   Remaining.Free;
 end;
 
-procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean);
+procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean;
+  UserProps: TMQTTStringPairArray);
 var
   Remaining: TMemoryStream;
   Flags: Byte = 0;
+  SP: TMQTTStringPair;
 begin
   // Ch. 3.8
 
@@ -715,6 +724,10 @@ begin
       if Length(CorrelData) > 0 then begin
         WriteByte(9);
         WriteMQTTBin(CorrelData);             // correlation data (Ch. 3.3.2.3.6)
+      end;
+      for SP in UserProps do begin
+        WriteByte(38);
+        WriteMQTTStringPair(SP);              // user property    (Ch. 3.3.2.3.7)
       end;
       Seek(0, soBeginning);
       Remaining.WriteVarInt(Size);
