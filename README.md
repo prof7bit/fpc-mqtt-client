@@ -26,6 +26,7 @@ If you are interested in this, then you should click the "watch" button in GitHu
 * retain
 * response topic
 * correlation data
+* user properties
 * QoS 1
 * QoS 2
 
