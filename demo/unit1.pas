@@ -45,7 +45,6 @@ type
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
-    procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
   private
     FClient: TMQTTClient;
@@ -112,10 +111,6 @@ end;
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   Ini.Free;
-end;
-
-procedure TForm1.FormResize(Sender: TObject);
-begin
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
