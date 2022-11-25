@@ -103,6 +103,7 @@ type
     CorrelData: TBytes;
     SubsID: UInt16;
     QoS: Byte;
+    Retain: Boolean;
     UserProps: TMQTTUserProperties;
   end;
 
@@ -787,6 +788,7 @@ var
     Data.RespTopic := P.RespTopic;
     Data.CorrelData := P.CorrelData;
     Data.QoS := P.QoS;
+    Data.Retain := P.Retain;
     Data.UserProps.Init(P.UserProperty);
     FRXQueue.Push(Data);
     TThread.Queue(nil, @popOnRX);
