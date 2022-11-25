@@ -8,3 +8,4 @@
 **/*.key
 **/*.csr
 demo/project1
+release
