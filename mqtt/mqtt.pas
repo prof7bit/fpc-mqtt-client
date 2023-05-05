@@ -100,7 +100,7 @@ type
     Topic: String;
     Message: String;
     RespTopic: String;
-    CorrelData: TBytes;
+    CorrelData: String;
     SubsID: UInt16;
     QoS: Byte;
     Retain: Boolean;
@@ -126,7 +126,7 @@ type
     Topic: String;
     Message: String;
     ResponseTopic: String;
-    CorrelData: TBytes;
+    CorrelData: String;
     QoS: Byte;
     Retain: Boolean;
     UserProps: TMQTTStringPairArray;
@@ -276,8 +276,8 @@ type
     function Subscribe(TopicFilter: String; QoS: Byte; SubsID: UInt32): TMQTTError;
     function Unsubscribe(TopicFilter: String): TMQTTError;
     function Publish(Topic, Message: String; QoS: Byte; Retain: Boolean): TMQTTError;
-    function Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
-    function Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean; UserProps: TMQTTUserProperties): TMQTTError;
+    function Publish(Topic, Message, ResponseTopic, CorrelData: String; QoS: Byte; Retain: Boolean): TMQTTError;
+    function Publish(Topic, Message, ResponseTopic, CorrelData: String; QoS: Byte; Retain: Boolean; UserProps: TMQTTUserProperties): TMQTTError;
     function Connected: Boolean;
     property RetainAvail: Boolean read FRetainAvail;
     property MaxQoS: Byte read FMaxQos;
@@ -1169,10 +1169,10 @@ end;
 
 function TMQTTClient.Publish(Topic, Message: String; QoS: Byte; Retain: Boolean): TMQTTError;
 begin
-  Result := Publish(Topic, Message, '', [], QoS, Retain);
+  Result := Publish(Topic, Message, '', '', QoS, Retain);
 end;
 
-function TMQTTClient.Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean): TMQTTError;
+function TMQTTClient.Publish(Topic, Message, ResponseTopic, CorrelData: String; QoS: Byte; Retain: Boolean): TMQTTError;
 var
   UP: TMQTTUserProperties;
 begin
@@ -1180,7 +1180,7 @@ begin
   Result := Publish(Topic, Message, ResponseTopic, CorrelData, QoS, Retain, UP);
 end;
 
-function TMQTTClient.Publish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; QoS: Byte; Retain: Boolean; UserProps: TMQTTUserProperties): TMQTTError;
+function TMQTTClient.Publish(Topic, Message, ResponseTopic, CorrelData: String; QoS: Byte; Retain: Boolean; UserProps: TMQTTUserProperties): TMQTTError;
 var
   PacketID: UInt16;
   M: TMQTTQueuedPublish;

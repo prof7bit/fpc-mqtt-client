@@ -121,7 +121,7 @@ type
     ExpiryInterval: UInt32;
     TopicAlias: UInt16;
     RespTopic: UTF8String;
-    CorrelData: TBytes;
+    CorrelData: String;
     UserProperty: array of TMQTTStringPair;
     SubscriptionID: array of UInt32;
     ContentType: UTF8String;
@@ -200,7 +200,7 @@ type
     procedure WriteMQTTConnect(ID, User, Pass: string; Keepalive: UInt16; CleanStart: Boolean; SessionExpiry: UInt32; MaxPacketSize: UInt32);
     procedure WriteMQTTPingReq;
     procedure WriteMQTTSubscribe(Topic: String; PacketID: UInt16; QoS: Byte; SubsID: UInt32);
-    procedure WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean; UserProps: TMQTTStringPairArray);
+    procedure WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData: String; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean; UserProps: TMQTTStringPairArray);
     procedure WriteMQTTUnsubscribe(Topic: String; PacketID: UInt16);
     procedure WriteMQTTPubAck(PacketID: UInt16; ReasonCode: Byte);
     procedure WriteMQTTPubRec(PacketID: UInt16; ReasonCode: Byte);
@@ -357,7 +357,7 @@ begin
         02: ExpiryInterval := ReadInt32Big;       // Ch. 3.3.2.3.3
         35: TopicAlias := ReadInt16Big;           // Ch. 3.3.2.3.4
         08: RespTopic := ReadMQTTString;          // Ch. 3.3.2.3.5
-        09: CorrelData := ReadMQTTBin;            // Ch. 3.3.2.3.6
+        09: CorrelData := ReadMQTTString;         // Ch. 3.3.2.3.6
         38: UserProperty += [ReadMQTTStringPair]; // Ch. 3.3.2.3.7
         11: SubscriptionID += [ReadVarInt];       // Ch. 3.3.2.3.8
         03: ContentType := ReadMQTTString;        // Ch. 3.3.2.3.9
@@ -696,8 +696,7 @@ begin
   Remaining.Free;
 end;
 
-procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic: String; CorrelData: TBytes; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean;
-  UserProps: TMQTTStringPairArray);
+procedure TMQTTStream.WriteMQTTPublish(Topic, Message, ResponseTopic, CorrelData: String; PacketID: UInt16; QoS: Byte; Retain: Boolean; Dup: Boolean; UserProps: TMQTTStringPairArray);
 var
   Remaining: TMemoryStream;
   Flags: Byte = 0;
@@ -725,7 +724,7 @@ begin
       end;
       if Length(CorrelData) > 0 then begin
         WriteByte(9);
-        WriteMQTTBin(CorrelData);             // correlation data (Ch. 3.3.2.3.6)
+        WriteMQTTString(CorrelData);          // correlation data (Ch. 3.3.2.3.6)
       end;
       for SP in UserProps do begin
         WriteByte(38);

@@ -178,7 +178,7 @@ begin
   UserProps.SetVal('Content-Type', 'text/plain; charset=utf-8');
 
   Res := FClient.Publish(EditPubTopic.Text, EditPubMessage.Text, EditRespTopic.Text,
-    TBytes(EditCorrelData.Text), SpinEditQoS.Value, False, UserProps);
+    EditCorrelData.Text, SpinEditQoS.Value, False, UserProps);
 
   if Res <> mqeNoError then
     Debug(Format('publish: %s', [GetEnumName(TypeInfo(TMQTTError), Ord(Res))]));
@@ -267,20 +267,14 @@ end;
 
 procedure TForm1.OnReceive(Client: TMQTTClient; Msg: TMQTTRXData);
 var
-  B: Byte;
-  S: String;
   I: Integer;
 begin
   Debug(Format('OnReceive: QoS %d %d %d %s = %s',
     [Msg.QoS, Msg.SubsID, Msg.ID, Msg.Topic, Msg.Message]));
   if Msg.RespTopic <> '' then
     Debug(Format('           Response Topic: %s', [Msg.RespTopic]));
-  if Length(Msg.CorrelData) > 0 then begin
-    S := '';
-    for B in Msg.CorrelData do
-      S += IntToHex(B, 2) + ' ';
-    Debug(Format('           Correlation Data: %s', [S]));
-  end;
+  if Msg.CorrelData <> '' then
+    Debug(Format('           Correlation Data: %s', [Msg.CorrelData]));
   with Msg.UserProps do begin
     if Count > 0 then begin
       for I := 0 to Count - 1 do begin
