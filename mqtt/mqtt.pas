@@ -1004,7 +1004,7 @@ begin
     Result := FNextPacketID;
     if Result = 0 then // IDs must be non-zero, so we skip the zero
       Result := 1;
-    FNextPacketID := Result + 1;
+    FNextPacketID := (Result + 1) and $ffff;
   finally
     Unlock;
   end;
