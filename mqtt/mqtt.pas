@@ -852,7 +852,6 @@ begin
   Debug('   topic alias max is %d', [P.TopicAliasMax]);
   Debug('   max QoS is %d', [FMaxQoS]);
   Debug('   retain available: %s', [BoolToStr(FRetainAvail, 'yes', 'no')]);
-  Debug('connected.');
   if P.ReasonCode = 0 then begin
     FQueuedPublish.Lock;
     try
@@ -886,8 +885,13 @@ begin
     finally
       FQueuedPubRel.Unlock;
     end;
+    Debug('connected.');
+    PushOnConnect;
+  end
+  else begin
+    Debug('connect failed, reason: %d', [P.ReasonCode]);
+    Disconnect;
   end;
-  PushOnConnect;
 end;
 
 procedure TMQTTClient.Handle(P: TMQTTPingResp);
