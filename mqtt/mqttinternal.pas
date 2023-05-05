@@ -523,7 +523,7 @@ procedure TMQTTStream.WriteInt16Big(X: UInt16);
 begin
   // Ch. 1.5.2
   WriteByte(X shr 8);
-  WriteByte(X);
+  WriteByte(X and $ff);
 end;
 
 procedure TMQTTStream.WriteInt32Big(X: UInt32);
@@ -532,7 +532,7 @@ begin
   WriteByte(X shr 24);
   WriteByte(X shr 16);
   WriteByte(X shr 8);
-  WriteByte(X);
+  WriteByte(X and $ff);
 end;
 
 procedure TMQTTStream.WriteMQTTString(X: UTF8String);
@@ -542,7 +542,8 @@ begin
   // Ch. 1.5.4
   L := Length(X);
   WriteInt16Big(L);
-  WriteBuffer(X[1], L); // traditionally strings have 1-based indices in Pascal
+  if L > 0 then
+    WriteBuffer(X[1], L); // traditionally strings have 1-based indices in Pascal
 end;
 
 procedure TMQTTStream.WriteMQTTBin(X: TBytes);
@@ -552,7 +553,8 @@ begin
   // Ch. 1.5.6
   L := Length(X);
   WriteInt16Big(L);
-  WriteBuffer(X[0], L);
+  if L > 0 then
+    WriteBuffer(X[0], L);
 end;
 
 procedure TMQTTStream.WriteMQTTStringPair(SP: TMQTTStringPair);
@@ -859,7 +861,8 @@ begin
   Result := '';
   L := ReadInt16Big;
   SetLength(Result, L);
-  ReadBuffer(Result[1], L); // traditionally strings have 1-based indices in Pascal
+  if L > 0 then
+    ReadBuffer(Result[1], L); // traditionally strings have 1-based indices in Pascal
 end;
 
 function TMQTTStream.ReadMQTTBin: TBytes;
@@ -870,7 +873,8 @@ begin
   Result := [];
   L := ReadInt16Big;
   SetLength(Result, L);
-  ReadBuffer(Result[0], L);
+  if L > 0 then
+    ReadBuffer(Result[0], L);
 end;
 
 function TMQTTStream.ReadMQTTStringPair: TMQTTStringPair;
